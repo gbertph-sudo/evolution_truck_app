@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Inventory - Evolution Truck</title>
+
+  <link rel="stylesheet" href="/static/et-theme.css?v=2">
+
+  <style>
+    .tile.has-alert{ border-color: rgba(225,6,0,.35) !important; box-shadow: 0 0 0 6px rgba(225,6,0,.10), var(--et-shadow) !important; }
+
+    :root{
+      --et-red:#e10600;
+      --et-red-dark:#c10000;
+      --et-line:rgba(0,0,0,.08);
+      --et-shadow:0 14px 30px rgba(0,0,0,.08);
+      --et-shadow-soft:0 10px 22px rgba(0,0,0,.06);
+      --et-radius:18px;
+      --et-radius-sm:12px;
+    }
+
+    /* ===== TILES ===== */
+    .tile{
+      position:relative;
+      padding:22px 22px 18px;
+      border-radius:var(--et-radius);
+      transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+      cursor:pointer;
+      border:1px solid var(--et-line);
+      box-shadow:var(--et-shadow-soft);
+      overflow:hidden;
+      background:#fff;
+    }
+    .tile::before{
+      content:"";
+      position:absolute;
+      inset:-60px -80px auto auto;
+      width:260px;
+      height:140px;
+      transform:rotate(16deg);
+      background:linear-gradient(90deg, rgba(225,6,0,.10), rgba(0,0,0,0));
+      pointer-events:none;
+    }
+    .tile h3{ margin:0 0 8px 0; font-weight:900; letter-spacing:.2px; }
+    .tile .muted{ margin-bottom:12px; }
+    .tile .spacer{ height:10px; }
+    .tile::after{
+      content:"";
+      position:absolute;
+      left:22px;
+      top:52px;
+      width:44px;
+      height:3px;
+      background:var(--et-red);
+      border-radius:999px;
+      opacity:0;
+      transition:.2s;
+    }
+    .tile:hover{
+      transform:translateY(-3px);
+      box-shadow:var(--et-shadow);
+      border-color:rgba(225,6,0,.18);
+    }
+    .tile.active::after{ opacity:1; }
+    .tile button{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      padding:12px 14px;
+      font-weight:900;
+      cursor:pointer;
+      transition:.18s;
+    }
+    .tile.active button{ background:var(--et-red); color:#fff; }
+    .tile.active button:hover{ background:var(--et-red-dark); }
+    .tile:not(.active) button{ background:#eceff3; color:#2b2f36; }
+    .tile:not(.active) button:hover{ background:#e3e7ec; }
+
+    /* ===== CARDS ===== */
+    .card{
+      border-radius:var(--et-radius);
+      border:1px solid var(--et-line);
+      box-shadow:var(--et-shadow-soft);
+      background:#fff;
+    }
+
+    /* ===== LIST HEADER + FILTERS ===== */
+    .list-header{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-end;
+      gap:18px;
+      margin-bottom:18px;
+    }
+    .list-title{
+      font-size:34px;
+      font-weight:950;
+      letter-spacing:.2px;
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .list-title .bar{
+      width:10px;
+      height:26px;
+      border-radius:999px;
+      background:var(--et-red);
+      box-shadow:0 0 0 4px rgba(225,6,0,.10);
+    }
+    .list-updated{
+      font-size:14px;
+      font-weight:900;
+      opacity:.75;
+      white-space:nowrap;
+    }
+
+    .toolbar-stack{
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      margin-bottom:14px;
+    }
+    .toolbar-stack input{
+      width:100%;
+      padding:12px 14px;
+      border-radius:12px;
+      border:1px solid rgba(0,0,0,.12);
+      transition:.18s;
+      font-weight:700;
+      background:#fff;
+    }
+    .toolbar-stack input:focus{
+      outline:none;
+      border-color:rgba(225,6,0,.45);
+      box-shadow:0 0 0 4px rgba(225,6,0,.14);
+    }
+    .toolbar-row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+      padding-top:4px;
+    }
+    .toolbar-actions{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    /* ===== BUTTONS ===== */
+    button{
+      border-radius:12px;
+      font-weight:900;
+      padding:10px 16px;
+      transition:.18s;
+    }
+    button.secondary{
+      background:#eceff3;
+      border:none;
+      color:#2b2f36;
+    }
+    button.secondary:hover{ background:#e3e7ec; }
+
+    button.ghost{
+      background:transparent;
+      border:1px solid rgba(0,0,0,.12);
+    }
+    button.ghost:hover{
+      border-color:rgba(225,6,0,.35);
+      box-shadow:0 0 0 4px rgba(225,6,0,.10);
+    }
+
+    /* ===== TABLE ===== */
+    .table-wrap{
+      border-radius:var(--et-radius);
+      overflow:hidden;
+      border:1px solid rgba(0,0,0,.08);
+    }
+    .table-wrap table{
+      border-collapse:separate;
+      border-spacing:0 10px;
+      width:100%;
+    }
+    .table-wrap thead th{
+      font-size:12px;
+      letter-spacing:.6px;
+      text-transform:uppercase;
+      opacity:.7;
+      padding:14px 16px 6px;
+    }
+    .table-wrap tbody tr{
+      background:#fff;
+      box-shadow:0 8px 18px rgba(0,0,0,.05);
+      border-radius:14px;
+      transition:.18s;
+    }
+    .table-wrap tbody tr:hover{
+      transform:translateY(-2px);
+      box-shadow:0 12px 26px rgba(0,0,0,.08);
+    }
+    .table-wrap td{
+      padding:14px 16px;
+      vertical-align:middle;
+    }
+
+    /* ===== STATUS CHIPS ===== */
+    .chip{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:6px 12px;
+      border-radius:999px;
+      font-weight:950;
+      font-size:12px;
+      letter-spacing:.3px;
+    }
+    .chip::before{
+      content:"";
+      width:8px;
+      height:8px;
+      border-radius:999px;
+      background:currentColor;
+      opacity:.65;
+    }
+    .chip.ok{ background:#e9f7ee; color:#1f7a3e; }
+    .chip.warn{ background:#fff4e5; color:#b56b00; }
+    .chip.bad{ background:#fde8e8; color:#b42318; }
+
+    /* ===== FORM (PRO + MEC) ===== */
+    .form-header{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-end;
+      gap:16px;
+      margin-bottom:14px;
+    }
+    .form-title{
+      font-size:30px;
+      font-weight:950;
+      letter-spacing:.2px;
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .form-title .bar{
+      width:10px;height:24px;border-radius:999px;background:var(--et-red);
+      box-shadow:0 0 0 4px rgba(225,6,0,.10);
+    }
+    .form-mode{
+      font-weight:900;
+      opacity:.75;
+    }
+
+    .section{
+      border:1px solid rgba(0,0,0,.08);
+      border-radius:16px;
+      padding:16px;
+      margin-top:14px;
+      background:linear-gradient(180deg, rgba(0,0,0,.015), rgba(0,0,0,0));
+    }
+    .section h3{
+      margin:0 0 12px 0;
+      font-size:13px;
+      letter-spacing:.6px;
+      text-transform:uppercase;
+      opacity:.75;
+      font-weight:950;
+    }
+
+    .row, .row3, .row4{
+      display:grid;
+      gap:12px;
+      margin-bottom:12px;
+    }
+    .row{ grid-template-columns: 1fr 1fr; }
+    .row3{ grid-template-columns: 1fr 1fr 1fr; }
+    .row4{ grid-template-columns: 1fr 1fr 1fr 1fr; }
+    .row.adjust-row{ grid-template-columns: 1fr 1fr 1fr; }
+
+    label{
+      font-weight:900;
+      font-size:12px;
+      opacity:.8;
+      display:block;
+      margin-bottom:6px;
+    }
+
+    input, select, textarea{
+      width:100%;
+      padding:12px 14px;
+      border-radius:12px;
+      border:1px solid rgba(0,0,0,.12);
+      font-weight:700;
+      transition:.18s;
+      background:#fff;
+    }
+    textarea{ min-height:110px; resize:vertical; }
+    input:focus, select:focus, textarea:focus{
+      outline:none;
+      border-color:rgba(225,6,0,.45);
+      box-shadow:0 0 0 4px rgba(225,6,0,.14);
+    }
+
+    .help{
+      font-size:12px;
+      opacity:.70;
+      font-weight:800;
+      margin-top:6px;
+    }
+
+    .actions-bar{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:14px;
+      padding-top:14px;
+      border-top:1px dashed rgba(0,0,0,.12);
+    }
+
+    /* ===== MODALS (overlay real) ===== */
+    .modal{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.55);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      z-index:9999;
+    }
+    .modal.open{ display:flex; }
+    .modal .box{
+      width:min(860px, 100%);
+      background:#fff;
+      border-radius:18px;
+      box-shadow:var(--et-shadow);
+      overflow:hidden;
+      border:1px solid rgba(0,0,0,.10);
+    }
+    .modal .box header{
+      background:#0e0f12;
+      color:#fff;
+      padding:14px 16px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+    }
+    .modal .box .title{
+      font-weight:950;
+      letter-spacing:.3px;
+    }
+    .modal .box .body{ padding:16px; }
+    .modal .close{
+      background:var(--et-red);
+      color:#fff;
+      border:none;
+      border-radius:12px;
+      font-weight:950;
+      padding:10px 14px;
+      cursor:pointer;
+    }
+    .modal .close:hover{ background:var(--et-red-dark); }
+
+    @media (max-width: 980px){
+      .row, .row3, .row4, .row.adjust-row{ grid-template-columns: 1fr; }
+      .list-title{ font-size:28px; }
+      .form-title{ font-size:26px; }
+    }
+
+    /* FIX GLOBAL botones */
+    button{
+      font-weight: 950 !important;
+      border-radius: 12px !important;
+      cursor: pointer !important;
+    }
+
+    button.ghost{
+      background: #fff !important;
+      color: #2b2f36 !important;
+      border: 1px solid rgba(0,0,0,.14) !important;
+    }
+
+    button.ghost:hover{
+      border-color: rgba(225,6,0,.35) !important;
+      box-shadow: 0 0 0 4px rgba(225,6,0,.10) !important;
+    }
+
+    button.secondary{
+      background: #eceff3 !important;
+      color: #2b2f36 !important;
+      border: 1px solid rgba(0,0,0,.10) !important;
+    }
+
+    button.secondary:hover{
+      background: #e3e7ec !important;
+    }
+
+    button.danger{
+      background: var(--et-red, #e10600) !important;
+      color: #fff !important;
+      border: none !important;
+      box-shadow: 0 10px 22px rgba(0,0,0,.10) !important;
+    }
+
+    button.danger:hover{
+      background: var(--et-red-dark, #c10000) !important;
+      transform: translateY(-1px);
+    }
+
+    button:disabled{
+      opacity: .55 !important;
+      cursor: not-allowed !important;
+      filter: grayscale(30%) !important;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="apiBanner" style="padding: 6px 12px; font-size: 14px;"></div>
+
+  <header>
+    <div class="left">
+      <div class="brand">EVOLUTION TRUCK</div>
+      <div class="nav">
+        <a href="/dashboard.html">Dashboard</a>
+        <a href="/static/inventory.html">Inventory</a>
+      </div>
+    </div>
+    <div class="right">
+      <span class="pill" id="apiStatus">API: ...</span>
+      <span class="pill" id="itemsCount">Items: 0</span>
+    </div>
+  </header>
+
+  <div class="wrap">
+
+    <!-- NAV TILES -->
+    <div class="grid" style="margin-bottom:14px;">
+      <div class="card tile" id="navNew">
+        <h3>➕ New Item</h3>
+        <div class="muted">Create a new inventory item.</div>
+        <div class="spacer"></div>
+        <button type="button">Open</button>
+      </div>
+
+      <div class="card tile" id="navList">
+        <h3>📦 All Items</h3>
+        <div class="muted">Search and manage items.</div>
+        <div class="spacer"></div>
+        <button type="button">Open</button>
+      </div>
+
+      <div class="card tile" id="navLow">
+        <h3>⚠️ Low Stock</h3>
+        <div class="muted">Items below minimum.</div>
+        <div class="spacer"></div>
+        <button type="button">Open</button>
+      </div>
+
+      <div class="card tile" id="navMoves">
+        <h3>🔄 Movements</h3>
+        <div class="muted">Stock in/out history.</div>
+        <div class="spacer"></div>
+        <button type="button">Open</button>
+      </div>
+    </div>
+
+    <div class="grid">
+
+      <!-- LIST -->
+      <div id="viewList" class="viewList">
+        <div class="card">
+          <div class="list-header">
+            <div class="list-title">
+              <span class="bar"></span>
+              <span>Inventory List</span>
+            </div>
+            <div class="list-updated" id="lastRefresh">Updated: —</div>
+          </div>
+
+          <div class="toolbar toolbar-stack">
+            <input id="searchBox" placeholder="Search by code, name, brand, category, OEM..." />
+            <input id="filterBrand" placeholder="Brand (optional)"/>
+            <input id="filterCategory" placeholder="Category (optional)"/>
+
+            <div class="toolbar-row">
+              <label class="flex" style="gap:8px; font-size:12px; font-weight:950;">
+                <input type="checkbox" id="lowStockOnly" />
+                Low stock only
+              </label>
+
+              <div class="toolbar-actions">
+                <button id="btnRefresh" class="secondary" type="button">Refresh</button>
+                <button id="btnNew" type="button">New item</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:140px;">Code</th>
+                  <th>Name</th>
+                  <th style="width:110px;">Stock</th>
+                  <th style="width:110px;">Min.</th>
+                  <th style="width:140px;">Status</th>
+                  <th style="width:220px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="itemsTbody">
+                <tr><td colspan="6" class="muted">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="actions">
+            <span class="mini" id="hint">Tip: click “View / Edit” to open the item and manage images / stock adjustments.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- FORM -->
+      <div id="viewForm" class="viewForm" style="display:none;">
+        <div class="card">
+
+          <div class="form-header">
+            <div class="form-title">
+              <span class="bar"></span>
+              <span id="formTitle">Create / Edit Item</span>
+            </div>
+            <div class="form-mode" id="formMode">New</div>
+          </div>
+
+          <form id="inventoryForm">
+
+            <div class="section">
+              <h3>Part Info</h3>
+
+              <div class="row">
+                <div>
+                  <label>Code (part_code) *</label>
+                  <input id="part_code" placeholder="Ex: FLT-123" required />
+                </div>
+                <div>
+                  <label>Name (part_name) *</label>
+                  <input id="part_name" placeholder="Ex: Air filter" required />
+                </div>
+              </div>
+
+              <div class="row">
+                <div>
+                  <label>Brand</label>
+                  <input id="brand" placeholder="Ex: Fleetguard" />
+                </div>
+                <div>
+                  <label>Category</label>
+                  <input id="category" placeholder="Ex: Filters" />
+                </div>
+              </div>
+
+              <div class="row">
+                <div>
+                  <label>Sub-category</label>
+                  <input id="sub_category" placeholder="Ex: Oil / Fuel / Air" />
+                </div>
+                <div>
+                  <label>OEM reference</label>
+                  <input id="oem_reference" placeholder="Ex: OEM-FTL-0001" />
+                </div>
+              </div>
+            </div>
+
+            <div class="section">
+              <h3>Stock & Pricing</h3>
+
+              <div class="row4">
+                <div>
+                  <label>Stock (initial)</label>
+                  <input id="quantity_in_stock" type="number" min="0" value="0" />
+                  <div class="help">Tip: after created, use “Adjust stock” for in/out movements.</div>
+                </div>
+                <div>
+                  <label>Minimum</label>
+                  <input id="minimum_stock" type="number" min="0" value="0" />
+                </div>
+                <div>
+                  <label>Reorder qty</label>
+                  <input id="reorder_quantity" type="number" min="0" value="0" />
+                </div>
+                <div>
+                  <label>Location</label>
+                  <input id="location" placeholder="Rack A3" />
+                </div>
+              </div>
+
+              <div class="row3">
+                <div>
+                  <label>Cost price</label>
+                  <input id="cost_price" type="number" step="0.01" min="0" value="0" />
+                </div>
+                <div>
+                  <label>Sale price base</label>
+                  <input id="sale_price_base" type="number" step="0.01" min="0" value="0" />
+                </div>
+                <div>
+                  <label>Taxable</label>
+                  <select id="taxable">
+                    <option value="true" selected>Yes</option>
+                    <option value="false">No</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="section">
+              <h3>Supplier & Fitment</h3>
+
+              <div class="row">
+                <div>
+                  <label>Supplier</label>
+                  <select id="supplier_id">
+                    <option value="">— No supplier —</option>
+                  </select>
+                  <div class="help">If it doesn't appear, create it below.</div>
+                </div>
+                <div>
+                  <label>Supplier part number</label>
+                  <input id="supplier_part_number" placeholder="Supplier SKU" />
+                </div>
+              </div>
+
+              <div class="row">
+                <div>
+                  <label>Engine type</label>
+                  <input id="engine_type" placeholder="Cummins X15 / PACCAR MX-13..." />
+                </div>
+                <div>
+                  <label>Vehicle make / model</label>
+                  <input id="vehicle_make_model" placeholder="Kenworth T680 / Peterbilt 579..." />
+                </div>
+              </div>
+            </div>
+
+            <div class="section">
+              <h3>Notes</h3>
+
+              <div class="row">
+                <div>
+                  <label>Description</label>
+                  <textarea id="description" placeholder="Quick notes about the part..."></textarea>
+                </div>
+                <div>
+                  <label>Technical notes</label>
+                  <textarea id="technical_notes" placeholder="Compatibility, torque, sensor info, etc..."></textarea>
+                </div>
+              </div>
+
+              <div class="row">
+                <div>
+                  <label>Create supplier (quick)</label>
+                  <input id="supplier_name" placeholder="Supplier name" />
+                </div>
+                <div class="flex" style="align-items:flex-end;">
+                  <button id="btnCreateSupplier" class="ghost" type="button">Create supplier</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="actions-bar">
+              <button id="btnSave" type="submit">Save</button>
+              <button id="btnReset" class="ghost" type="reset">Clear</button>
+              <button id="btnOpenImages" class="secondary" type="button" disabled>Photos</button>
+              <button id="btnAdjust" class="secondary" type="button" disabled>Adjust stock</button>
+              <span class="mini" id="formMsg" style="margin-left:auto;"></span>
+            </div>
+
+          </form>
+        </div>
+      </div>
+
+      <!-- MOVES -->
+      <div id="viewMoves" class="viewMoves" style="display:none;">
+        <div class="card" style="padding:16px;">
+          <div class="list-header" style="margin-bottom:12px;">
+            <div class="list-title">
+              <span class="bar"></span>
+              <span>Movements</span>
+            </div>
+            <div class="list-updated" id="movesLastRefresh">Updated: —</div>
+          </div>
+
+          <div class="toolbar toolbar-stack">
+            <input id="movesSearch" placeholder="Search by code, name, user, notes..." />
+
+            <div class="row3" style="margin-bottom:0;">
+              <div>
+                <label>Type</label>
+                <select id="movesType">
+                  <option value="">All</option>
+                  <option value="IN">IN</option>
+                  <option value="OUT">OUT</option>
+                  <option value="ADJUST">ADJUST</option>
+                </select>
+              </div>
+              <div>
+                <label>From</label>
+                <input id="movesFrom" type="date"/>
+              </div>
+              <div>
+                <label>To</label>
+                <input id="movesTo" type="date"/>
+              </div>
+            </div>
+
+            <div class="toolbar-row">
+              <div class="toolbar-actions">
+                <button id="btnMovesRefresh" class="secondary" type="button">Refresh</button>
+                <button id="btnMovesBack" class="ghost" type="button">Back to list</button>
+              </div>
+              <span class="mini" id="movesMsg"></span>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:170px;">Date</th>
+                  <th style="width:90px;">Type</th>
+                  <th style="width:110px;">Qty</th>
+                  <th style="width:150px;">Code</th>
+                  <th>Name</th>
+                  <th style="width:160px;">User</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody id="movesTbody">
+                <tr><td colspan="7" class="muted">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL: Stock adjustment -->
+  <div class="modal" id="modalAdjust">
+    <div class="box">
+      <header>
+        <div class="title">Adjust stock</div>
+        <button class="close" id="closeAdjust" type="button">Close</button>
+      </header>
+      <div class="body">
+        <div class="row adjust-row">
+          <div>
+            <label>Type</label>
+            <select id="adj_type">
+              <option value="in">In</option>
+              <option value="out">Out</option>
+              <option value="adjustment">Adjustment</option>
+            </select>
+          </div>
+
+          <div>
+            <label>Quantity (qty)</label>
+            <input id="adj_qty" type="number" min="1" value="1"/>
+          </div>
+
+          <div id="adj_unit_cost_wrap" style="display:none;">
+            <label>Unit cost (for IN)</label>
+            <input id="adj_unit_cost" type="number" step="0.01" min="0" placeholder="Ex: 12.50"/>
+            <div class="help">Required for IN. Used for weighted average cost.</div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Notes</label>
+            <input id="adj_notes" placeholder="Ex: sale, return, cycle count..." />
+          </div>
+          <div class="flex" style="align-items:flex-end;">
+            <button id="btnDoAdjust" type="button">Apply</button>
+          </div>
+        </div>
+        <div class="mini" id="adjMsg"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Images -->
+  <div class="modal" id="modalImages">
+    <div class="box">
+      <header>
+        <div class="title">Item photos</div>
+        <button class="close" id="closeImages" type="button">Close</button>
+      </header>
+      <div class="body">
+        <div class="row">
+          <div>
+            <label>Image URL</label>
+            <input id="img_url" placeholder="https://... or /static/..." />
+          </div>
+          <div>
+            <label>Primary</label>
+            <select id="img_primary">
+              <option value="false" selected>No</option>
+              <option value="true">Yes</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Alt text</label>
+            <input id="img_alt" placeholder="Ex: Fleetguard air filter" />
+          </div>
+          <div class="flex" style="align-items:flex-end;">
+            <button id="btnAddImage" type="button">Add photo</button>
+          </div>
+        </div>
+
+        <div class="sep"></div>
+
+        <div class="img-grid" id="imagesGrid"></div>
+        <div class="mini" id="imgMsg" style="margin-top:10px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/inventory.js?v=4"></script>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const typeSel = document.getElementById("adj_type");
+      const wrap = document.getElementById("adj_unit_cost_wrap");
+      const inp = document.getElementById("adj_unit_cost");
+
+      function syncUnitCostVisibility(){
+        const isIn = (typeSel?.value || "").toLowerCase() === "in";
+        if (wrap) wrap.style.display = isIn ? "" : "none";
+        if (!isIn && inp) inp.value = "";
+      }
+
+      if (typeSel) {
+        typeSel.addEventListener("change", syncUnitCostVisibility);
+        syncUnitCostVisibility();
+      }
+    });
+  </script>
+</body>
+</html>
+

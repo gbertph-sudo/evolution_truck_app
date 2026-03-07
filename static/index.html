@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="stylesheet" href="/static/et-theme.css?v=2">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evolution Truck - Login</title>
+</head>
+
+<body>
+
+  <div class="container login-container">
+
+    <div class="logo">
+      <img src="/static/assets/logo.jpeg" alt="Evolution Truck Logo" />
+    </div>
+
+    <div class="login-card">
+      <div class="subtitle">
+        Login (Admin / Sales / Mechanic / Accountant)
+      </div>
+
+      <label for="username">Username</label>
+      <input id="username" placeholder="e.g. admin" autocomplete="username" />
+
+      <label for="password">Password</label>
+      <input id="password" type="password" placeholder="••••••••" autocomplete="current-password" />
+
+      <div class="login-actions">
+        <button type="button" class="login-actions button" id="btnLogin">
+          Login
+        </button>
+      </div>
+
+      <p id="status"></p>
+      <pre id="result">Ready to login...</pre>
+    </div>
+
+  </div>
+
+  <script>
+    async function login() {
+
+      const username = (document.getElementById("username").value || "").trim();
+      const password = (document.getElementById("password").value || "").trim();
+      const status = document.getElementById("status");
+      const result = document.getElementById("result");
+      const btn = document.getElementById("btnLogin");
+
+      if (!username || !password) {
+        status.innerText = "Please enter username and password.";
+        return;
+      }
+
+      status.innerText = "Authenticating...";
+      if (btn) btn.disabled = true;
+
+      // Enviamos datos como x-www-form-urlencoded (compatible con FastAPI OAuth2)
+      const body = new URLSearchParams();
+      body.append("username", username);
+      body.append("password", password);
+
+      try {
+        const response = await fetch("/auth/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          status.innerText = "Login failed: " + (data.detail || "Invalid credentials");
+          if (result) result.textContent = JSON.stringify(data, null, 2);
+          return;
+        }
+
+        // 🔐 Guardamos el token en varias keys para compatibilidad con inventory.js
+        localStorage.setItem("token", data.access_token);
+        localStorage.setItem("access_token", data.access_token);
+        localStorage.setItem("token_type", data.token_type || "bearer");
+
+        // Guardamos información del usuario para dashboard
+        localStorage.setItem("user_name", username);
+        localStorage.setItem("user_role", data.role_name || data.role || "User");
+
+        status.innerText = "Login successful ✅";
+        if (result) result.textContent = "Session started successfully.";
+
+        // Redirección al dashboard
+        window.location.href = "/dashboard.html";
+
+      } catch (err) {
+        console.error(err);
+        status.innerText = "Connection error. Please try again.";
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+
+      // Si ya existe token, ir directo al dashboard
+      const token =
+        localStorage.getItem("token") ||
+        localStorage.getItem("access_token") ||
+        localStorage.getItem("jwt");
+
+      if (token) {
+        window.location.href = "/dashboard.html";
+        return;
+      }
+
+      // Click botón
+      document.getElementById("btnLogin")?.addEventListener("click", login);
+
+      // Enter para login
+      document.getElementById("password")?.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") login();
+      });
+
+      document.getElementById("username")?.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") login();
+      });
+    });
+  </script>
+
+</body>
+</html>

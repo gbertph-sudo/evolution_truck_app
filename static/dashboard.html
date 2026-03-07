@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="stylesheet" href="/static/et-theme.css?v=1">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard - Evolution Truck</title>
+
+  <!-- Estilos (mismos del inventory para que se vea igual) -->
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f4f6f8; }
+
+    header {
+      background:#111;
+      color:#fff;
+      padding:14px 18px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+    }
+    header a { color:#fff; text-decoration:none; }
+
+    .wrap { max-width: 1100px; margin: 20px auto; padding: 0 14px; }
+
+    .card {
+      background:#fff;
+      border-radius:10px;
+      padding:16px;
+      box-shadow:0 2px 10px rgba(0,0,0,.06);
+      margin-bottom:14px;
+    }
+
+    .muted { color:#666; font-size:13px; }
+
+    .grid {
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap:14px;
+    }
+
+    /* --- Cards de módulos (Inventory, Users, etc.) --- */
+    .card.tile{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      min-height:100px;
+    }
+    .card.tile h3 { margin:0; }
+
+    /* empuja el botón abajo */
+    .spacer { flex:1; }
+
+    button{
+      padding:10px 14px;
+      border:none;
+      border-radius:8px;
+      cursor:pointer;
+      background:#d61f2c;
+      color:#fff;
+      font-weight:600;
+    }
+    button:hover{ background:#ff3b30; }
+
+    /* Botón secundario */
+    button.secondary{
+      background: transparent;
+      color: #d61f2c;
+      border: 1px solid #d61f2c;
+    }
+
+    button[disabled]{
+      opacity:.7;
+      cursor:not-allowed;
+    }
+
+    #msg { margin-top:10px; font-weight:600; }
+
+    /* Raya roja */
+    .card h3, .card h2 { position: relative; }
+    .card h3::after, .card h2::after{
+      content: "";
+      display: block;
+      width: 44px;
+      height: 3px;
+      margin-top: 8px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #d61f2c, #ff3b30);
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Header -->
+  <header>
+    <div>📊 Dashboard</div>
+    <div>
+      <button class="secondary" id="logoutBtn">Logout</button>
+    </div>
+  </header>
+
+  <div class="wrap">
+
+    <!-- Bienvenida / estado -->
+    <div class="card">
+      <h2 style="margin:0;">Welcome</h2>
+      <div class="muted">You are signed in. Choose a module to continue.</div>
+      <div class="msg" id="msg"></div>
+    </div>
+
+    <!-- Módulos -->
+    <div class="grid">
+
+      <!-- Inventory -->
+      <div class="card tile">
+        <h3>📦 Inventory</h3>
+        <div class="muted">Create, update and track stock levels.</div>
+        <div class="spacer"></div>
+        <button id="goInventoryBtn">Open Inventory</button>
+      </div>
+
+      <!-- Users (ADMIN ONLY) -->
+      <div class="card tile" id="createUsersCard" style="display:none;">
+        <h3>👤 Users</h3>
+        <div class="muted">Create and manage system users.</div>
+        <div class="spacer"></div>
+        <button id="goUsersBtn">Manage Users</button>
+      </div>
+
+      <!-- Customers ✅ (ya activo) -->
+      <div class="card tile">
+        <h3>👥 Customers</h3>
+        <div class="muted">Create customers and assign companies.</div>
+        <div class="spacer"></div>
+        <button id="goCustomersBtn">Open Customers</button>
+      </div>
+
+      <!-- ✅ Companies (NUEVO) -->
+      <div class="card tile">
+        <h3>🏢 Companies</h3>
+        <div class="muted">Create companies and link them to customers.</div>
+        <div class="spacer"></div>
+        <button id="goCompaniesBtn">Open Companies</button>
+      </div>
+
+      <!-- Vehicles ✅ (ya activo) -->
+      <div class="card tile">
+        <h3>🚚 Vehicles</h3>
+        <div class="muted">Add vehicles and link them to customers.</div>
+        <div class="spacer"></div>
+        <button id="goVehiclesBtn">Open Vehicles</button>
+      </div>
+
+      <!-- Work Orders ✅ -->
+      <div class="card tile">
+        <h3>🛠️ Work Orders</h3>
+        <div class="muted">Create and manage shop work orders (PDF + print).</div>
+        <div class="spacer"></div>
+        <button id="goWorkOrdersBtn">Open Work Orders</button>
+      </div>
+
+      <!-- Invoices -->
+      <div class="card tile" id="tileInvoices" style="cursor:pointer;">
+      <h3>🧾 Invoices</h3>
+      <div class="muted">Review invoices, payment method, totals and PDF.</div>
+      <div class="spacer"></div>
+      <button id="btnInvoices">Open</button>
+      </div>
+
+      <!-- El resto de tus tiles los dejo como estaban (Locked) -->
+      <div class="card tile"><h3>🛒 Parts Store (POS)</h3><div class="muted">Sell parts and create tickets.</div><div class="spacer"></div><button disabled>Locked</button></div>
+      <div class="card tile"><h3>📚 Service History</h3><div class="muted">View past repairs by vehicle.</div><div class="spacer"></div><button disabled>Locked</button></div>
+      <div class="card tile"><h3>🏭 Vendors / Suppliers</h3><div class="muted">Manage suppliers and pricing.</div><div class="spacer"></div><button disabled>Locked</button></div>
+      <div class="card tile"><h3>📦 Purchase Orders</h3><div class="muted">Generate purchase orders automatically.</div><div class="spacer"></div><button disabled>Locked</button></div>
+      <div class="card tile"><h3>📝 Estimates / Quotes</h3><div class="muted">Create quotes and convert to invoices.</div><div class="spacer"></div><button disabled>Locked</button></div>
+      <div class="card tile"><h3>💳 Payments</h3><div class="muted">Track cash, card and digital payments.</div><div class="spacer"></div><button disabled>Locked</button></div>
+      <div class="card tile"><h3>📒 Accounting / Ledger</h3><div class="muted">Income, expenses and tax records.</div><div class="spacer"></div><button disabled>Locked</button></div>
+      <div class="card tile"><h3>⏱️ Labor / Time Tracking</h3><div class="muted">Track mechanic hours per job.</div><div class="spacer"></div><button disabled>Locked</button></div>
+      <div class="card tile"><h3>📅 Appointments</h3><div class="muted">Schedule jobs and visits.</div><div class="spacer"></div><button disabled>Locked</button></div>
+      <div class="card tile"><h3>✅ Tasks / Checklist</h3><div class="muted">Daily tasks and job checklists.</div><div class="spacer"></div><button disabled>Locked</button></div>
+      <div class="card tile"><h3>🔁 Warranty / Returns</h3><div class="muted">Manage warranties and returns.</div><div class="spacer"></div><button disabled>Locked</button></div>
+      <div class="card tile"><h3>📊 Reports</h3><div class="muted">Sales and inventory reports.</div><div class="spacer"></div><button disabled>Locked</button></div>
+      <div class="card tile"><h3>📈 Analytics</h3><div class="muted">KPIs and performance metrics.</div><div class="spacer"></div><button disabled>Locked</button></div>
+      <div class="card tile"><h3>🔐 Roles & Permissions</h3><div class="muted">Define access per role.</div><div class="spacer"></div><button disabled>Locked</button></div>
+      <div class="card tile"><h3>⚙️ Settings</h3><div class="muted">System and shop configuration.</div><div class="spacer"></div><button disabled>Locked</button></div>
+      <div class="card tile"><h3>🧾 Audit Log</h3><div class="muted">Track user actions.</div><div class="spacer"></div><button disabled>Locked</button></div>
+
+    </div>
+  </div>
+
+  <!-- Lógica del dashboard -->
+  <script src="/static/dashboard.js?v=3"></script>
+</body>
+</html>

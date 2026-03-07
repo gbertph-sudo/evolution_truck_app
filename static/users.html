@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="stylesheet" href="/static/et-theme.css?v=1"> 
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Users - Evolution Truck</title>
+
+  <style>
+    body { font-family: Arial, sans-serif; margin:0; background:#f4f6f8; }
+    header { background:#111; color:#fff; padding:14px 18px; display:flex; justify-content:space-between; align-items:center; }
+    .wrap { max-width:1100px; margin:20px auto; padding:0 14px; }
+    .card { background:#fff; border-radius:10px; padding:16px; box-shadow:0 2px 10px rgba(0,0,0,.06); margin-bottom:14px; }
+    .muted { color:#666; font-size:13px; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; }
+    .col { flex:1; min-width:240px; }
+    label { display:block; font-size:12px; color:#555; margin:10px 0 6px; }
+    input, select { width:100%; padding:10px 10px; border:1px solid #ddd; border-radius:8px; outline:none; }
+    .actions { display:flex; justify-content:flex-end; gap:10px; margin-top:10px; }
+    button { padding:10px 14px; border:none; border-radius:8px; cursor:pointer; background:#d46a1f; color:#fff; }
+    button.secondary { background:#444; }
+    button.ghost { background:#eee; color:#222; }
+    button:disabled { opacity:.6; cursor:not-allowed; }
+    .msg { margin-top:10px; font-weight:600; min-height:18px; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { text-align:left; padding:10px 8px; border-top:1px solid #eee; }
+    thead th { border-top:none; color:#555; font-size:12px; text-transform:uppercase; letter-spacing:.02em; }
+    .pill { display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; }
+    .pill.on { background:#d9f7e3; color:#0d7a3a; }
+    .pill.off { background:#fde2e2; color:#8a1c1c; }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div>Evolution Truck — Users</div>
+    <div style="display:flex; gap:10px;">
+      <button class="secondary" id="goDashboardBtn" type="button">Dashboard</button>
+      <button class="secondary" id="logoutBtn" type="button">Logout</button>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="card">
+      <h2 style="margin:0;">Create User</h2>
+      <div class="muted">Only ADMIN / SUPERADMIN can use this page.</div>
+
+      <form id="userForm" style="margin-top:12px;">
+        <div class="row">
+          <div class="col">
+            <label>Username</label>
+            <input id="username" placeholder="e.g. mike" autocomplete="off" />
+          </div>
+
+          <div class="col">
+            <label>Full name</label>
+            <input id="full_name" placeholder="e.g. Mike Johnson" autocomplete="off" />
+          </div>
+
+          <div class="col">
+            <label>Email</label>
+            <input id="email" placeholder="e.g. mike@mail.com" autocomplete="off" />
+          </div>
+
+          <div class="col">
+            <label>Password</label>
+            <input id="password" type="password" placeholder="min 6 chars" />
+          </div>
+
+          <div class="col" style="min-width:260px;">
+            <label>Role</label>
+            <select id="role_id"></select>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="ghost" id="btnRefresh" type="button">Refresh List</button>
+          <button type="submit">Save User</button>
+        </div>
+
+        <div class="msg" id="formMsg"></div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2 style="margin:0 0 10px 0;">Users list</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Username</th>
+            <th>Full name</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Active</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="usersTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Password Reset Modal -->
+  <div id="pwModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); align-items:center; justify-content:center; z-index:9999;">
+    <div style="width:min(520px, 92vw); background:#fff; border-radius:12px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.25);">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+        <h3 style="margin:0;">Change password</h3>
+        <button class="ghost" type="button" id="pwCloseBtn">X</button>
+      </div>
+
+      <div class="muted" id="pwUserInfo" style="margin-top:6px;"></div>
+
+      <label style="margin-top:12px;">New password</label>
+      <input id="pwNew" type="password" placeholder="min 6 chars" />
+
+      <label style="margin-top:10px;">Confirm password</label>
+      <input id="pwConfirm" type="password" placeholder="repeat password" />
+
+      <div class="actions" style="margin-top:14px;">
+        <button class="secondary" type="button" id="pwCancelBtn">Cancel</button>
+        <button type="button" id="pwSaveBtn">Save</button>
+      </div>
+
+      <div class="msg" id="pwMsg"></div>
+    </div>
+  </div>
+
+  <!-- IMPORTANTE: sube este número cuando cambies users.js para evitar cache -->
+  <script src="/static/users.js?v=301"></script>
+</body>
+</html>

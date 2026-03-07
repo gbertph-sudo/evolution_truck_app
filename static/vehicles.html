@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Vehicles - Evolution Truck</title>
+
+  <!-- ✅ mismo theme del resto -->
+  <link rel="stylesheet" href="/static/et-theme.css?v=1" />
+
+  <style>
+    /* Pequeños ajustes para que se vea como Inventory */
+    .topbar-right { display:flex; gap:10px; align-items:center; }
+    .row.actions { align-items:flex-end; }
+    .muted { color:#6b7280; }
+    .table td small { color:#6b7280; }
+    .pill { font-weight:600; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <header class="topbar">
+      <h1>Vehicles</h1>
+      <div class="topbar-right">
+        <span class="pill" id="apiStatus">API: —</span>
+        <button class="ghost" id="btnBack" type="button">⬅ Back</button>
+      </div>
+    </header>
+
+    <!-- CREATE -->
+    <section class="card">
+      <h2 style="margin-top:0;">Create Vehicle</h2>
+
+      <div class="row">
+        <div class="col">
+          <label>VIN (17 chars)</label>
+          <input id="vin" type="text" placeholder="(optional)" maxlength="17" />
+        </div>
+        <div class="col">
+          <label>Unit #</label>
+          <input id="unit_number" type="text" placeholder="(optional)" />
+        </div>
+        <div class="col">
+          <label>Year</label>
+          <input id="year" type="number" placeholder="(optional)" min="1900" max="2100" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col">
+          <label>Make</label>
+          <input id="make" type="text" placeholder="(optional)" />
+        </div>
+        <div class="col">
+          <label>Model</label>
+          <input id="model" type="text" placeholder="(optional)" />
+        </div>
+        <div class="col">
+          <label>Customer</label>
+          <select id="customer_id">
+            <option value="">— No customer —</option>
+          </select>
+          <div class="muted" style="margin-top:6px;">
+            Tip: choose a customer to link this vehicle.
+          </div>
+        </div>
+      </div>
+
+      <div class="row actions">
+        <div class="col" style="max-width:220px;">
+          <button id="btnCreate" type="button">Create</button>
+        </div>
+        <div class="col">
+          <span id="msg" class="muted"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- LIST -->
+    <section class="card">
+      <div class="row" style="justify-content:space-between;align-items:center;">
+        <h2 style="margin:0;">List</h2>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <!-- ✅ search rápido -->
+          <input id="searchBox" type="text" placeholder="Search VIN, Unit, Make, Model..." style="min-width:280px;">
+          <button class="ghost" id="btnRefresh" type="button">Refresh</button>
+        </div>
+      </div>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th style="width:70px;">ID</th>
+            <th style="width:190px;">VIN</th>
+            <th style="width:140px;">Unit #</th>
+            <th style="width:80px;">Year</th>
+            <th style="width:160px;">Make</th>
+            <th style="width:160px;">Model</th>
+            <th style="width:220px;">Customer</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td colspan="7" class="muted">Loading...</td></tr>
+        </tbody>
+      </table>
+
+      <div class="muted" style="margin-top:10px;">
+        <span id="countPill">—</span>
+      </div>
+    </section>
+  </div>
+
+  <script src="/static/vehicles.js?v=1"></script>
+</body>
+</html>

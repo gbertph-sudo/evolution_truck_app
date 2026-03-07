@@ -1,0 +1,565 @@
+/* ===============================
+   Evolution Truck - Global Theme
+   (Dashboard + Users + Inventory + Login)
+   =============================== */
+
+/* --- Brand tokens --- */
+:root{
+  --bg: #f4f6f8;
+  --card: #ffffff;
+  --text: #111827;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+
+  --dark: #111111;
+  --dark-2:#1f2937;
+
+  /* 🔥 Evolution Truck Red (protagonista) */
+  --primary: #d32f2f;
+  --primary-2:#b71c1c;
+
+  --ok: #16a34a;
+  --warn:#f59e0b;
+  --bad: #ef4444;
+
+  --shadow: 0 8px 25px rgba(0,0,0,.10);
+  --radius: 12px;
+}
+
+/* --- Base --- */
+*{ box-sizing:border-box; }
+html, body{ height:100%; }
+body{
+  margin:0;
+  font-family: Arial, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+a{ color:inherit; text-decoration:none; }
+
+.wrap{
+  max-width: 1100px;
+  margin: 20px auto;
+  padding: 0 14px;
+}
+
+.card{
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+
+.muted{
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.row{
+  display:flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.col{
+  flex: 1;
+  min-width: 220px;
+}
+
+.spacer{ flex: 1; }
+
+/* --- Header bar (Dashboard/Users/Inventory) --- */
+header{
+  background: var(--dark);
+  color: #fff;
+  padding: 14px 18px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  position: sticky;
+  top:0;
+  z-index: 10;
+}
+
+header .brand{
+  font-weight: 800;
+  letter-spacing:.2px;
+}
+
+header .nav{
+  display:flex;
+  gap: 10px;
+  align-items:center;
+}
+
+header .nav button,
+header .nav a{
+  appearance:none;
+  border:1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.06);
+  color:#fff;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor:pointer;
+  font-weight:600;
+}
+header .nav button:hover,
+header .nav a:hover{
+  background: rgba(255,255,255,.10);
+}
+
+/* --- Buttons --- */
+button{
+  appearance:none;
+  border:none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  cursor:pointer;
+  font-weight: 700;
+  background: var(--primary);
+  color: #fff;
+  transition: transform .05s ease, background .15s ease;
+}
+button:hover{ background: var(--primary-2); }
+button:active{ transform: translateY(1px); }
+
+button.ghost{
+  background: #fff;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+button.ghost:hover{
+  background: #f9fafb;
+}
+
+button.secondary{
+  background: #f3f4f6;
+  color: #6b7280;
+  border: 1px solid var(--border);
+  cursor: not-allowed;
+}
+
+/* make tile buttons full width */
+.card.tile button{ width:100%; }
+
+/* --- Inputs / Selects --- */
+input, select, textarea{
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  outline: none;
+  background: #fff;
+}
+input:focus, select:focus, textarea:focus{
+  border-color: rgba(211,47,47,.6);
+  box-shadow: 0 0 0 3px rgba(211,47,47,.15);
+}
+
+label{
+  display:block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+/* --- Messages --- */
+.msg{
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+.msg.ok{
+  border-color: rgba(22,163,74,.35);
+  background: rgba(22,163,74,.08);
+}
+.msg.bad{
+  border-color: rgba(239,68,68,.35);
+  background: rgba(239,68,68,.08);
+}
+
+/* --- Tables --- */
+table{
+  width:100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+th, td{
+  padding: 10px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align:left;
+}
+th{
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .6px;
+}
+
+/* ===============================
+   Dashboard tiles
+   =============================== */
+.grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.card.tile{
+  display:flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 120px;
+}
+
+.card.tile h3{
+  margin:0;
+  font-size: 16px;
+  display:flex;
+  align-items:center;
+  gap: 8px;
+  position: relative;
+  padding-bottom: 10px;
+}
+
+/* ✅ La “rayita” roja debajo del título (como te gustó) */
+.card.tile h3::after{
+  content:"";
+  position:absolute;
+  left:0;
+  bottom: 0;
+  width: 42px;
+  height: 3px;
+  background: var(--primary);
+  border-radius: 999px;
+}
+
+/* ===============================
+   LOGIN page styles
+   (se activan con .container/.logo)
+   =============================== */
+
+.login-title{
+  font-weight: 800;
+  margin: 0 0 8px;
+}
+
+.small-note{
+  font-size: 12px;
+  color: var(--muted);
+}
+/* ===== LOGIN ===== */
+
+.container{
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  row-gap: 6px;
+  background: var(--bg);
+  margin: 0;
+}
+
+/* logo */
+.logo img{
+  width: 300px;      /* antes está demasiado grande */
+  max-width: 92vw;   /* en pantallas pequeñas no se sale */
+  height: auto;
+  display: block;
+  border-radius: 5 px;
+  margin: 1px;
+}
+
+/* card */
+.login-card{
+  margin: 0 auto;
+  max-width: 720px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  
+}
+
+/* subtitle */
+.subtitle{
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 18px;
+}
+
+/* labels */
+.login-card label{
+  font-size: 13px;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 6px;
+}
+
+/* inputs */
+.login-card input{
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.login-card input:focus{
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(193,18,31,.15);
+}
+
+/* actions */
+.login-actions{
+  display: flex;
+  justify-content: center;   /* 🔥 botón al centro */
+  margin-top: 10px;          /* 🔥 separación del input */
+}
+
+
+/* button */
+.login-actions button{
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  border: none;
+  cursor: pointer;
+}
+
+.login-actions button:hover{
+  background: #e06a6a;
+  color: #fff;              /* 👈 ESTO FALTABA */
+}
+
+/* status text */
+#status,
+#result{
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+/* ===== USER BAR ===== */
+.user-bar{
+  position: fixed;
+  top: 14px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card);
+  padding: 8px 14px;
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  font-size: 13px;
+}
+
+.user-bar span{
+  font-weight: 600;
+  color: var(--text);
+}
+
+.user-bar button{
+  background: transparent;
+  border: none;
+  color: var(--primary);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.user-bar button:hover{
+  text-decoration: underline;
+}
+#userInfo:empty {
+  display: none !important;
+}
+/* ===== TOPBAR (header) ===== */
+.topbar{
+  position: sticky;       /* o fixed si lo quieres siempre arriba */
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: #111;
+  color: #fff;
+}
+
+/* título */
+.topbar-title{
+  font-weight: 700;
+}
+
+/* user bar derecha */
+.user-bar{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* evita la bolita */
+#userInfo:empty{
+  display: none !important;
+}
+
+/* texto usuario */
+#userInfo{
+  font-size: 13px;
+  font-weight: 600;
+  opacity: .95;
+}
+
+/* logout compacto (no gigante) */
+#logoutBtn{
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.25);
+  background: transparent;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#logoutBtn:hover{
+  border-color: rgba(255,255,255,.5);
+}
+/* ===============================
+   INVENTORY PROFESSIONAL POLISH
+   =============================== */
+
+.card{
+  border-radius:18px;
+  padding:28px;
+  box-shadow:0 8px 24px rgba(0,0,0,.06);
+}
+
+/* ===== HEADER LIST ===== */
+.list-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  margin-bottom:20px;
+}
+
+.list-title{
+  font-size:34px;
+  font-weight:900;
+  letter-spacing:.3px;
+}
+
+.list-updated{
+  font-weight:700;
+  opacity:.75;
+  font-size:15px;
+}
+
+/* ===== FILTER STACK ===== */
+.toolbar-stack{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  margin-bottom:18px;
+}
+
+.toolbar-stack input{
+  width:100%;
+  padding:12px 14px;
+  border-radius:10px;
+  border:1px solid #ddd;
+  transition:.2s;
+}
+
+.toolbar-stack input:focus{
+  outline:none;
+  border-color:#e10600;
+  box-shadow:0 0 0 3px rgba(225,6,0,.15);
+}
+
+/* ===== BUTTONS ===== */
+button{
+  border-radius:10px;
+  font-weight:800;
+  padding:10px 16px;
+  transition:.2s;
+}
+
+button.secondary{
+  background:#e9ecef;
+  border:none;
+}
+
+button.secondary:hover{
+  background:#dfe3e6;
+}
+
+button:not(.secondary){
+  background:#e10600;
+  color:#fff;
+  border:none;
+}
+
+button:not(.secondary):hover{
+  background:#c10000;
+}
+
+/* ===== TABLE ===== */
+.table-wrap table{
+  border-collapse:separate;
+  border-spacing:0 10px;
+}
+
+.table-wrap tbody tr{
+  background:#fff;
+  box-shadow:0 4px 12px rgba(0,0,0,.04);
+  border-radius:12px;
+  transition:.2s;
+}
+
+.table-wrap tbody tr:hover{
+  transform:translateY(-2px);
+  box-shadow:0 6px 18px rgba(0,0,0,.07);
+}
+
+.table-wrap td{
+  padding:14px 16px;
+}
+
+/* ===== STATUS PILLS ===== */
+.chip{
+  padding:6px 14px;
+  border-radius:999px;
+  font-weight:800;
+  font-size:12px;
+  display:inline-block;
+}
+
+.chip.ok{
+  background:#e7f6ec;
+  color:#1f7a3e;
+}
+
+.chip.warn{
+  background:#fff4e5;
+  color:#c77c02;
+}
+
+.chip.bad{
+  background:#fde8e8;
+  color:#b42318;
+}

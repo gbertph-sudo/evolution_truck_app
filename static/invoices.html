@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="stylesheet" href="/static/et-theme.css?v=1">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Invoices - Evolution Truck</title>
+
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f4f6f8; }
+
+    header{
+      background:#111; color:#fff;
+      padding:14px 18px;
+      display:flex; justify-content:space-between; align-items:center;
+      gap:10px; flex-wrap:wrap;
+    }
+
+    .wrap{ max-width: 1250px; margin: 20px auto; padding: 0 14px; }
+
+    .card{
+      background:#fff;
+      border-radius:12px;
+      padding:16px;
+      box-shadow:0 2px 10px rgba(0,0,0,.06);
+      margin-bottom:14px;
+    }
+
+    .muted{ color:#666; font-size:13px; }
+    .danger{ color:crimson; font-weight:700; }
+    .ok{ color:green; font-weight:700; }
+
+    .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .spacer{ flex:1; }
+
+    input, select{
+      padding:10px 12px;
+      border:1px solid #ddd;
+      border-radius:10px;
+      outline:none;
+      min-width:220px;
+      background:#fff;
+    }
+    input[type="checkbox"]{ min-width:auto; }
+
+    button{
+      padding:10px 14px;
+      border:none;
+      border-radius:10px;
+      cursor:pointer;
+      background:#d61f2c;
+      color:#fff;
+      font-weight:700;
+    }
+    button:hover{ background:#ff3b30; }
+    button.secondary{
+      background: transparent;
+      color: #d61f2c;
+      border: 1px solid #d61f2c;
+    }
+    button.ghost{
+      background: transparent;
+      color:#111;
+      border:1px solid #ddd;
+    }
+    button[disabled]{ opacity:.65; cursor:not-allowed; }
+
+    table{ width:100%; border-collapse: collapse; }
+    th, td{ text-align:left; padding:10px; border-bottom:1px solid #eee; vertical-align: top; }
+    th{ font-size:12px; color:#444; }
+    td{ font-size:13px; }
+
+    .pill{
+      display:inline-block;
+      padding:4px 10px;
+      border-radius:999px;
+      font-size:12px;
+      color:#fff;
+      background:#111;
+    }
+    .pill.draft{ background:#555; }
+    .pill.sent{ background:#0b5; }
+    .pill.paid{ background:#111; }
+    .pill.void{ background:#999; }
+
+    .actions{ display:flex; gap:8px; flex-wrap:wrap; }
+    .actions button{ padding:8px 10px; font-size:12px; }
+
+    /* ✅ Modal PRO scroll interno */
+    .modalBackdrop{
+      position:fixed; inset:0;
+      background: rgba(0,0,0,.45);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding: 14px;
+      z-index:9999;
+      overflow:auto;
+    }
+    .modal{
+      width:min(1150px, 100%);
+      background:#fff;
+      border-radius:12px;
+      box-shadow:0 10px 30px rgba(0,0,0,.25);
+      overflow:hidden;
+      max-height: calc(100vh - 28px);
+      display:flex;
+      flex-direction:column;
+    }
+    .modalHeader{
+      background:#111;
+      color:#fff;
+      padding:12px 14px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      flex: 0 0 auto;
+    }
+    .modalBody{
+      padding:14px;
+      overflow:auto;
+      flex: 1 1 auto;
+    }
+    .modalFooter{
+      padding:14px;
+      display:flex;
+      justify-content:flex-end;
+      gap:10px;
+      border-top:1px solid #eee;
+      background:#fafafa;
+      flex-wrap:wrap;
+      flex: 0 0 auto;
+    }
+
+    .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+    @media (max-width: 980px){
+      .grid2{ grid-template-columns:1fr; }
+      input, select{ min-width:100%; }
+    }
+    .miniCard{ border:1px solid #eee; border-radius:14px; padding:12px; background:#fff; }
+    .miniCard h3{ margin:0; font-size:15px; }
+
+    .tiny{ font-size:12px; color:#666; }
+    .right{ text-align:right; }
+    .badge{
+      display:inline-block;
+      padding:2px 8px;
+      border:1px solid #ddd;
+      border-radius:999px;
+      font-size:12px;
+      background:#fff;
+      color:#111;
+    }
+
+    .kpis{
+      display:grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap:12px;
+      margin-top:12px;
+    }
+    @media (max-width: 980px){
+      .kpis{ grid-template-columns: repeat(2, 1fr); }
+    }
+    .kpi{
+      border:1px solid #eee;
+      border-radius:14px;
+      padding:12px;
+      background:#fff;
+    }
+    .kpi .label{ font-size:12px; color:#666; }
+    .kpi .value{ font-size:20px; font-weight:900; margin-top:6px; }
+
+    .hint{
+      border:1px dashed #ddd;
+      border-radius:14px;
+      padding:10px;
+      background:#fafafa;
+      margin-top:10px;
+      font-size:13px;
+      color:#444;
+    }
+
+    /* inputs en tabla */
+    td input[type="number"]{
+      width: 110px;
+      min-width: 110px;
+      padding:8px 10px;
+      border:1px solid #ddd;
+      border-radius:10px;
+      outline:none;
+      text-align:right;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div>🧾 Invoices</div>
+    <div class="row">
+      <button class="secondary" id="backBtn">← Dashboard</button>
+      <button class="secondary" id="logoutBtn">Logout</button>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="card">
+      <h2 style="margin:0;">Invoices</h2>
+      <div class="muted" style="margin-top:8px;">
+        Review & adjust prices (admin), select payment method, then print/send PDF.
+      </div>
+
+      <div class="kpis" id="kpis"></div>
+
+      <div class="row" style="margin-top:12px;">
+        <input id="q" placeholder="Search invoice # / customer / notes..." />
+        <select id="statusFilter">
+          <option value="">All status</option>
+          <option value="DRAFT">DRAFT</option>
+          <option value="SENT">SENT</option>
+          <option value="PAID">PAID</option>
+          <option value="VOID">VOID</option>
+        </select>
+        <button class="ghost" id="refreshBtn">Refresh</button>
+        <div class="spacer"></div>
+      </div>
+
+      <div id="listMsg" class="muted" style="margin-top:10px;"></div>
+
+      <div style="margin-top:12px; overflow:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th style="min-width:160px;">Invoice</th>
+              <th style="min-width:110px;">Status</th>
+              <th style="min-width:200px;">Customer</th>
+              <th style="min-width:140px;">Payment</th>
+              <th style="min-width:120px;" class="right">Subtotal</th>
+              <th style="min-width:110px;" class="right">Tax</th>
+              <th style="min-width:110px;" class="right">Fee</th>
+              <th style="min-width:130px;" class="right">Total</th>
+              <th style="min-width:240px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="9" class="muted">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Details Modal -->
+  <div class="modalBackdrop" id="modalBackdrop">
+    <div class="modal">
+      <div class="modalHeader">
+        <div style="font-weight:900;" id="modalTitle">Invoice</div>
+        <button class="secondary" id="closeModalBtn">Close</button>
+      </div>
+
+      <div class="modalBody">
+        <div id="modalMsg" class="muted"></div>
+
+        <div class="grid2" style="margin-top:12px;">
+          <div class="miniCard">
+            <h3>Summary</h3>
+            <div class="muted" id="invMeta" style="margin-top:8px;"></div>
+
+            <div class="row" style="margin-top:10px;">
+              <span class="muted">Payment:</span>
+              <select id="payMethod">
+                <option value="">Select...</option>
+                <option value="CASH">CASH (no tax)</option>
+                <option value="CARD">CARD (tax + fee)</option>
+                <option value="ZELLE">ZELLE (tax)</option>
+              </select>
+              <span class="badge" id="rateBadge">Rates: tax 7% · card fee 4%</span>
+            </div>
+
+            <div class="row" style="margin-top:10px;">
+              <label class="row" style="gap:8px; align-items:center;">
+                <input type="checkbox" id="unlockPricesChk" />
+                <span><b>Unlock prices</b> (Admin only)</span>
+              </label>
+              <span class="muted" id="unlockHint"></span>
+            </div>
+
+            <div class="hint">
+              ✅ Default price is fixed for normal customers. <br>
+              ✅ Only Admin can unlock price editing (Markup 0–200% based on cost, or edit unit price).
+            </div>
+          </div>
+
+          <div class="miniCard">
+            <h3>Totals</h3>
+            <div class="row" style="margin-top:10px; justify-content:flex-end;">
+              <div class="right">
+                <div class="muted">Subtotal</div>
+                <div style="font-size:18px;font-weight:900;" id="tSubtotal">$0.00</div>
+              </div>
+              <div class="right">
+                <div class="muted">Tax</div>
+                <div style="font-size:18px;font-weight:900;" id="tTax">$0.00</div>
+              </div>
+              <div class="right">
+                <div class="muted">Fee</div>
+                <div style="font-size:18px;font-weight:900;" id="tFee">$0.00</div>
+              </div>
+              <div class="right">
+                <div class="muted">Total</div>
+                <div style="font-size:20px;font-weight:950;" id="tTotal">$0.00</div>
+              </div>
+            </div>
+            <div class="tiny" style="margin-top:8px;">
+              Totals update live when payment method or prices change.
+            </div>
+          </div>
+        </div>
+
+        <div class="miniCard" style="margin-top:12px;">
+          <h3>Items</h3>
+
+          <div style="overflow:auto; margin-top:10px;">
+            <table>
+              <thead>
+                <tr>
+                  <th style="min-width:90px;">Type</th>
+                  <th>Description</th>
+                  <th style="min-width:90px;" class="right">Qty</th>
+                  <th style="min-width:130px;" class="right">Cost</th>
+                  <th style="min-width:110px;" class="right">Markup %</th>
+                  <th style="min-width:140px;" class="right">Unit Price</th>
+                  <th style="min-width:140px;" class="right">Line Total</th>
+                  <th style="min-width:120px;">Save</th>
+                </tr>
+              </thead>
+              <tbody id="itemsTbody"></tbody>
+            </table>
+          </div>
+
+          <div class="tiny" style="margin-top:10px;">
+            Markup rule: <b>unit_price = cost * (1 + markup/100)</b> · Markup allowed: <b>0–200%</b>.
+          </div>
+        </div>
+      </div>
+
+      <div class="modalFooter">
+        <button class="ghost" id="pdfBtn">PDF</button>
+        <button class="secondary" id="markSentBtn">Mark SENT</button>
+        <button class="secondary" id="voidBtn">VOID</button>
+        <button id="payBtn">Mark PAID</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/invoices.js?v=1"></script>
+</body>
+</html>
