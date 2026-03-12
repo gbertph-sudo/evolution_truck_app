@@ -31,13 +31,10 @@ function nowStamp() { return new Date().toLocaleString(); }
 // SESSION / AUTH
 // ===============================
 
-// Redirige al login (si falta token o 401)
 function goLogin() {
-  // Nota: tu login está en /static/index.html
   window.location.href = "/static/index.html";
 }
 
-// Lee token desde varias keys (compatibilidad)
 function readToken() {
   return (
     localStorage.getItem("token") ||
@@ -50,7 +47,6 @@ function readToken() {
   ).trim();
 }
 
-// Lee token_type si existe
 function readTokenType() {
   return (
     localStorage.getItem("token_type") ||
@@ -59,7 +55,6 @@ function readTokenType() {
   ).trim();
 }
 
-// ✅ HEADER CORRECTO
 function getAuthHeaders() {
   const token = readToken();
   if (!token) return {};
@@ -70,7 +65,6 @@ function getAuthHeaders() {
   return { Authorization: `${scheme} ${token}` };
 }
 
-// Si el backend responde 401, limpiamos y mandamos al login
 async function handleUnauthorized(res) {
   if (res && res.status === 401) {
     console.warn("401 Unauthorized → redirecting to login");
@@ -113,7 +107,6 @@ function getRoleNameFromToken() {
   const payload = parseJwt(token);
   if (!payload) return "";
 
-  // soporta varios formatos
   const rn =
     payload.role_name ||
     payload.role ||
@@ -122,7 +115,6 @@ function getRoleNameFromToken() {
     payload.rol ||
     "";
 
-  // si role viene como objeto, intenta name
   if (typeof rn === "object" && rn && rn.name) return String(rn.name).toUpperCase();
 
   return String(rn || "").toUpperCase();
@@ -139,13 +131,11 @@ function applyPermissionsUI() {
   const navMoves = $("navMoves");
   const viewMoves = $("viewMoves");
 
-  // Oculta MOVEMENTS para no-admin
   if (!isAdminUser) {
     if (navMoves) navMoves.style.display = "none";
     if (viewMoves) viewMoves.style.display = "none";
   } else {
     if (navMoves) navMoves.style.display = "";
-    // viewMoves lo controla showView()
   }
 }
 
@@ -184,7 +174,6 @@ function showView(name){
   const form = $("viewForm");
   const movesView = $("viewMoves");
 
-  // Si no es admin, nunca mostramos moves
   if (!isAdminUser && name === "moves") name = "list";
 
   if (list)  list.style.display  = (name === "list")  ? "" : "none";
@@ -236,7 +225,7 @@ function computeStats(list){
     const qty = it.quantity_in_stock ?? 0;
     const min = it.minimum_stock ?? 0;
     if (qty <= 0) out++;
-    if (qty <= min) low++;
+    if ((it.is_active !== false) && qty <= min) low++;
   }
 
   return { total: list.length, low, out };
@@ -248,7 +237,6 @@ function updateTilesFromItems(){
   setTileTitle("navList", "All Items", stats.total, "📦");
   setTileTitle("navLow", "Low Stock", stats.low, "⚠️");
 
-  // Movements tile solo admin
   if (isAdminUser) {
     setTileTitle("navMoves", "Movements", (movesCount ? movesCount : "—"), "🔄");
   }
@@ -281,7 +269,7 @@ function readCreatePayload() {
     supplier_part_number: $("supplier_part_number").value.trim() || null,
 
     engine_type: $("engine_type").value.trim() || null,
-    vehicle_make_model: $("vehicle_make_model").value.trim() || null,
+    vehicle_make_model: $("vehicle_make_model") ? ($("vehicle_make_model").value.trim() || null) : null,
 
     description: $("description").value.trim() || null,
     technical_notes: $("technical_notes").value.trim() || null,
@@ -317,7 +305,9 @@ function fillFormFromItem(item) {
   $("supplier_part_number").value = item.supplier_part_number ?? "";
 
   $("engine_type").value = item.engine_type ?? "";
-  $("vehicle_make_model").value = item.vehicle_make_model ?? "";
+  if ($("vehicle_make_model")) {
+    $("vehicle_make_model").value = item.vehicle_make_model ?? "";
+  }
 
   $("description").value = item.description ?? "";
   $("technical_notes").value = item.technical_notes ?? "";
@@ -341,9 +331,11 @@ function resetFormToNew() {
 
 /* Table */
 function statusChip(item) {
+  const isActive = item.is_active !== false;
   const qty = item.quantity_in_stock ?? 0;
   const min = item.minimum_stock ?? 0;
 
+  if (!isActive) return '<span class="chip inactive">INACTIVE</span>';
   if (qty <= 0) return '<span class="chip bad">OUT</span>';
   if (qty <= min) return '<span class="chip warn">LOW</span>';
   return '<span class="chip ok">OK</span>';
@@ -361,16 +353,20 @@ function renderTable(list) {
   tbody.innerHTML = list.map(item => {
     const qty = item.quantity_in_stock ?? 0;
     const min = item.minimum_stock ?? 0;
+    const isInactive = item.is_active === false;
 
-    // Botón deactivate SOLO ADMIN
-    const adminButtons = isAdminUser ? `
-      <button class="danger" type="button" data-act="deact" data-id="${item.id}">Deactivate</button>
-    ` : "";
+    const adminButtons = isAdminUser
+      ? (
+          isInactive
+            ? `<button class="secondary" type="button" data-act="activate" data-id="${item.id}">Activate</button>`
+            : `<button class="danger" type="button" data-act="deact" data-id="${item.id}">Deactivate</button>`
+        )
+      : "";
 
     return `
-      <tr>
-        <td><b>${item.part_code ?? ""}</b></td>
-        <td>${item.part_name ?? ""}</td>
+      <tr class="${isInactive ? "inactive-row" : ""}">
+        <td><b class="${isInactive ? "inactive-text" : ""}">${item.part_code ?? ""}</b></td>
+        <td><span class="${isInactive ? "inactive-text" : ""}">${item.part_name ?? ""}</span></td>
         <td>${qty}</td>
         <td>${min}</td>
         <td>${statusChip(item)}</td>
@@ -400,12 +396,28 @@ function renderTable(list) {
       try {
         setPill("apiStatus", "API: updating...");
         await apiSend(API.active(id), "PATCH", { is_active: false });
-        await loadInventory(); // al desactivar, desaparece del list (porque backend filtra activos)
+        await loadInventory();
         setPill("apiStatus", "API: OK");
       } catch (err) {
         console.error(err);
         setPill("apiStatus", "API: ERROR");
         alert("Deactivate error. Check console.");
+      }
+      return;
+    }
+
+    if (act === "activate" && id) {
+      if (!isAdminUser) return;
+
+      try {
+        setPill("apiStatus", "API: updating...");
+        await apiSend(API.active(id), "PATCH", { is_active: true });
+        await loadInventory();
+        setPill("apiStatus", "API: OK");
+      } catch (err) {
+        console.error(err);
+        setPill("apiStatus", "API: ERROR");
+        alert("Activate error. Check console.");
       }
       return;
     }
@@ -419,10 +431,12 @@ function applyFiltersAndRender() {
   const lowOnly = $("lowStockOnly").checked;
 
   const filtered = items.filter(it => {
+    const isActive = it.is_active !== false;
     const qty = it.quantity_in_stock ?? 0;
     const min = it.minimum_stock ?? 0;
 
-    if (lowOnly && !(qty <= min)) return false;
+    if (!isAdminUser && !isActive) return false;
+    if (lowOnly && (!isActive || !(qty <= min))) return false;
     if (b && !String(it.brand ?? "").toLowerCase().includes(b)) return false;
     if (c && !String(it.category ?? "").toLowerCase().includes(c)) return false;
 
@@ -497,11 +511,14 @@ function formatMoveDate(x){
 function applyMovesFilters(list){
   const q = ($("movesSearch")?.value || "").trim().toLowerCase();
   const type = ($("movesType")?.value || "").trim().toUpperCase();
-  const from = ($("movesFrom")?.value || "").trim(); // YYYY-MM-DD
+  const from = ($("movesFrom")?.value || "").trim();
   const to = ($("movesTo")?.value || "").trim();
 
   return list.filter(m => {
-    if (type && String(m.movement_type || "").toUpperCase() !== type) return false;
+    const mt = String(m.movement_type || "").toUpperCase();
+    const mtNormalized = mt === "ADJUSTMENT" ? "ADJUST" : mt;
+
+    if (type && mtNormalized !== type) return false;
 
     const d = String(m.movement_date || m.created_at || "");
     if (from && d && d.slice(0,10) < from) return false;
@@ -528,11 +545,14 @@ function renderMovesTable(list){
 
   tbody.innerHTML = list.map(m => {
     const who = m.username || (m.user_id ? `User #${m.user_id}` : "—");
+    const typeLabel = String(m.movement_type || "").toUpperCase() === "ADJUSTMENT"
+      ? "ADJUST"
+      : String(m.movement_type || "").toUpperCase();
 
     return `
       <tr>
         <td>${formatMoveDate(m.movement_date || m.created_at)}</td>
-        <td><b>${String(m.movement_type || "")}</b></td>
+        <td><b>${typeLabel}</b></td>
         <td>${m.quantity_moved ?? ""}</td>
         <td>${m.part_code ?? ""}</td>
         <td>${m.part_name ?? ""}</td>
@@ -544,7 +564,6 @@ function renderMovesTable(list){
 }
 
 async function loadMovements(){
-  // Seguridad front: no admin no carga
   if (!isAdminUser) {
     moves = [];
     movesCount = 0;
@@ -592,9 +611,9 @@ function openEdit(id) {
   $("quantity_in_stock").disabled = true;
 
   $("btnOpenImages").disabled = false;
-  $("btnAdjust").disabled = false;
+  $("btnAdjust").disabled = (item.is_active === false);
 
-  setMsg("formMsg", "");
+  setMsg("formMsg", item.is_active === false ? "Inactive item: stock adjustment disabled." : "");
 
   showView("form");
   setActiveTile("navNew");
@@ -708,7 +727,13 @@ function refreshAdjustUI() {
 async function doAdjustStock() {
   if (!currentItemId) return;
 
-  const movement_type = $("adj_type").value; // in/out/adjustment
+  const currentItem = items.find(x => x.id === currentItemId);
+  if (currentItem && currentItem.is_active === false) {
+    setMsg("adjMsg", "Inactive item. Reactivate first.", true);
+    return;
+  }
+
+  const movement_type = $("adj_type").value;
   const qty = toInt($("adj_qty").value, 1);
   const notes = ($("adj_notes").value || "").trim();
 
@@ -863,11 +888,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   const form = $("inventoryForm");
   if (!form) return;
 
-  // List filters
   ["searchBox","filterBrand","filterCategory"].forEach(id => $(id)?.addEventListener("input", applyFiltersAndRender));
   $("lowStockOnly")?.addEventListener("change", applyFiltersAndRender);
 
-  // Movements filters (solo admin)
   if (isAdminUser) {
     ["movesSearch","movesFrom","movesTo"].forEach(id => $(id)?.addEventListener("input", () => {
       const filtered = applyMovesFilters(moves);
@@ -909,7 +932,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("closeImages")?.addEventListener("click", (e) => { e.preventDefault(); closeModal("modalImages"); });
   $("btnAddImage")?.addEventListener("click", addImage);
 
-  // Nav tiles
   $("navNew")?.addEventListener("click", () => { showView("form"); resetFormToNew(); setActiveTile("navNew"); });
   $("navList")?.addEventListener("click", async () => { showView("list"); setActiveTile("navList"); await loadInventory(); });
   $("navLow")?.addEventListener("click", async () => {
@@ -919,7 +941,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     applyFiltersAndRender();
   });
 
-  // Movements tile solo admin
   $("navMoves")?.addEventListener("click", async () => {
     if (!isAdminUser) return;
     showView("moves");
@@ -941,7 +962,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   await loadSuppliers();
   await loadInventory();
 
-  // Precarga movements solo admin (para count)
   if (isAdminUser) {
     await loadMovements();
   } else {

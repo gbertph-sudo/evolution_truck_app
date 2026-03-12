@@ -36,7 +36,7 @@ from schemas import (
 )
 
 # PDF (ReportLab)
-from reportlab.lib.pagesizes import letter, landscape
+from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch
 from reportlab.lib import colors
@@ -728,7 +728,6 @@ def create_invoice_from_work_order(
 # -------------------------------
 # PDF (se mantiene tu PDF)
 # -------------------------------
-
 @router.get("/work-orders/{work_order_id}/pdf")
 def work_order_pdf(
     work_order_id: int,
@@ -743,279 +742,250 @@ def work_order_pdf(
     company_phone = "Phone: 786-899-6360"
 
     invoice = wo.invoice
-    parts_total = sum((_q2(i.line_total) for i in (wo.items or [])), Decimal("0.00"))
-    labor_total = sum((_q2(l.line_total) for l in (wo.labors or [])), Decimal("0.00"))
-    subtotal = _q2(invoice.subtotal if invoice else (parts_total + labor_total))
+    subtotal = _q2(invoice.subtotal if invoice else sum((_q2(i.line_total) for i in (wo.items or [])), Decimal("0.00")) + sum((_q2(l.line_total) for l in (wo.labors or [])), Decimal("0.00")))
     tax = _q2(invoice.tax if invoice else subtotal * Decimal("0.07"))
     total = _q2(invoice.total if invoice else subtotal + tax)
 
     buf = BytesIO()
-    c = canvas.Canvas(buf, pagesize=landscape(letter))
-    width, height = landscape(letter)
+    c = canvas.Canvas(buf, pagesize=letter)
+    width, height = letter
 
-    left = 16
-    right = width - 16
-    top = height - 16
-    bottom = 18
+    left = 0.45 * inch
+    right = width - 0.45 * inch
+    top = height - 0.45 * inch
+    y = top
 
     def money(v):
         return f"${float(_q2(v or Decimal('0.00'))):,.2f}"
 
-    def box(x, y_top, w, h, fill=None, lw=1):
+    def draw_box(x, y_top, w, h, stroke=colors.black, fill=None, lw=1):
         c.setLineWidth(lw)
-        c.setStrokeColor(colors.black)
+        c.setStrokeColor(stroke)
         if fill is not None:
             c.setFillColor(fill)
-            c.rect(x, y_top - h, w, h, fill=1, stroke=1)
+            c.rect(x, y_top - h, w, h, stroke=1, fill=1)
             c.setFillColor(colors.black)
         else:
-            c.rect(x, y_top - h, w, h, fill=0, stroke=1)
+            c.rect(x, y_top - h, w, h, stroke=1, fill=0)
 
-    def txt(x, y, s, font="Helvetica", size=8):
+    def draw_wrapped(x, y_top, text_value, width_chars=34, leading=10, font="Helvetica", size=8):
         c.setFont(font, size)
-        c.drawString(x, y, str(s or ""))
-
-    def txt_right(x, y, s, font="Helvetica", size=8):
-        c.setFont(font, size)
-        c.drawRightString(x, y, str(s or ""))
-
-    def wrapped(x, y, s, width_chars, leading=10, font="Helvetica", size=8, max_lines=None):
-        c.setFont(font, size)
-        lines = textwrap.wrap(str(s or ""), width=width_chars) or [""]
-        if max_lines is not None:
-            lines = lines[:max_lines]
-        yy = y
-        for line in lines:
+        yy = y_top
+        for line in textwrap.wrap(str(text_value or "-"), width=width_chars):
             c.drawString(x, yy, line)
             yy -= leading
         return yy
 
-    # ========= TOP AREA =========
-    y = top
-    top_h = 168
+    def ensure_space(required=1.35 * inch):
+        nonlocal y
+        if y < required:
+            c.showPage()
+            y = top
 
-    left_w = 250
-    center_w = 250
-    right_w = (right - left) - left_w - center_w
+    # Header
+    header_h = 1.55 * inch
+    draw_box(left, y, right - left, header_h, lw=1.2)
 
-    # Left info block
-    box(left, y, left_w, top_h)
-    txt(left + 6, y - 14, "PLEASE READ CAREFULLY. CHECK ONE OF THE STATEMENTS BELOW, AND SIGN:", "Helvetica-Bold", 7)
-    legal_lines = [
-        "I UNDERSTAND THAT, UNDER STATE LAW, AN ESTIMATE TO A WRITTEN",
-        "LIMITED TO A WRITTEN ESTIMATE.",
-        "MY FINAL BILL EXCEEDS $100:",
-        "[] I DO NOT REQUEST A WRITTEN STATEMENT AS",
-        "LONG AS THE REPAIR COSTS DO NOT EXCEED THIS LIMIT.",
-        "[] I REQUEST AN ORAL APPROVAL.",
-        "[] I REQUEST A WRITTEN ESTIMATE.",
-    ]
-    yy = y - 28
-    for line in legal_lines:
-        txt(left + 6, yy, line, "Helvetica", 6.8)
-        yy -= 10
-
-    label_x = left + 8
-    value_x = left + 92
-    line_y = y - 104
-    row_gap = 13
-    data_pairs = [
-        ("SIGNED:", ""),
-        ("Phone:", wo.customer.phone if wo.customer and wo.customer.phone else ""),
-        ("Fax:", ""),
-        ("InvDate:", wo.created_at.strftime("%m/%d/%Y") if wo.created_at else ""),
-        ("Name:", wo.customer.name if wo.customer else ""),
-        ("Address:", company_addr_1),
-    ]
-    for k, v in data_pairs:
-        txt(label_x, line_y, k, "Helvetica-Bold", 7)
-        txt(value_x, line_y, v, "Helvetica", 7)
-        line_y -= row_gap
-    txt(value_x, line_y, company_addr_2, "Helvetica", 7)
-
-    # Center company/vehicle block
-    cx = left + left_w
-    box(cx, y, center_w, top_h)
     logo_path_final = (logo_path or LOGO_PATH_DEFAULT).strip()
+    logo_x = left + 0.14 * inch
+    logo_y = y - 0.16 * inch
     if logo_path_final and os.path.exists(logo_path_final):
         try:
-            c.drawImage(logo_path_final, cx + 72, y - 74, width=96, height=56, mask="auto")
+            c.drawImage(logo_path_final, logo_x, y - 1.02 * inch, width=1.15 * inch, height=0.9 * inch, mask="auto")
         except Exception:
             pass
-    txt(cx + center_w/2 - 70, y - 86, company_name, "Helvetica-Bold", 13)
-    txt(cx + center_w/2 - 78, y - 100, company_addr_1, "Helvetica", 7.5)
-    txt(cx + center_w/2 - 96, y - 112, company_addr_2, "Helvetica", 7.5)
-    txt(cx + center_w/2 - 62, y - 124, company_phone, "Helvetica", 7.5)
 
-    vehicle_txt = f"{(wo.vehicle.make or '') if wo.vehicle else ''} {(wo.vehicle.model or '') if wo.vehicle else ''}".strip() or "-"
-    details = [
-        ("Year:", str(wo.vehicle.year) if wo.vehicle and wo.vehicle.year else "-"),
-        ("Make:", wo.vehicle.make if wo.vehicle and wo.vehicle.make else "-"),
-        ("Model:", wo.vehicle.model if wo.vehicle and wo.vehicle.model else "-"),
-        ("VIN#:", wo.vehicle.vin if wo.vehicle and wo.vehicle.vin else "-"),
-        ("Unit:", wo.vehicle.unit_number if wo.vehicle and wo.vehicle.unit_number else "-"),
-        ("Miles out:", ""),
-    ]
-    lx1 = cx + 8
-    lx2 = cx + 132
-    dy = y - 142
-    for idx, (k,v) in enumerate(details[:3]):
-        txt(lx1, dy - idx*11, k, "Helvetica-Bold", 7)
-        txt(lx1+36, dy - idx*11, v, "Helvetica", 7)
-    for idx, (k,v) in enumerate(details[3:]):
-        txt(lx2, dy - idx*11, k, "Helvetica-Bold", 7)
-        txt(lx2+42, dy - idx*11, v, "Helvetica", 7)
+    c.setFont("Helvetica-Bold", 18)
+    c.drawCentredString((left + right) / 2, y - 0.38 * inch, company_name)
+    c.setFont("Helvetica", 9)
+    c.drawCentredString((left + right) / 2, y - 0.58 * inch, company_addr_1)
+    c.drawCentredString((left + right) / 2, y - 0.73 * inch, company_addr_2)
+    c.drawCentredString((left + right) / 2, y - 0.88 * inch, company_phone)
 
-    # Right estimate block
-    rx = cx + center_w
-    box(rx, y, right_w, top_h)
-    est_lines = [
-        ("ESTIMATE/DIAGNOSTIC", ""),
-        ("FEE:", ""),
-        ("OR/HOURLY on parts and labor", ""),
-        ("ESTIMATE", ""),
-        ("Proposed Complete Date:", ""),
-        ("Warranty:", "No"),
-        ("Customer Complaint/Problem:", (wo.description or "")[:28]),
-        ("Labor rate based on:", ""),
-        ("DOT rate:", ""),
-        ("HOURLY RATE $50.00", ""),
-        ("PER DAY MAY BE APPLIED", ""),
-        ("NOT CLEAR OF CHARGES", ""),
-    ]
-    yy = y - 14
-    for k, v in est_lines:
-        if v:
-            txt(rx + 8, yy, k, "Helvetica-Bold", 7)
-            txt(rx + 112, yy, v, "Helvetica", 7)
-        else:
-            txt(rx + 8, yy, k, "Helvetica", 7)
-        yy -= 11
-
-    # ========= DETAIL TABLES =========
-    y = top - top_h - 10
-
-    bar_w = 18
-    detail_h = 150
-
-    # Parts bar and table
-    box(left, y, bar_w, detail_h, fill=colors.lightgrey)
-    c.saveState()
+    info_w = 2.15 * inch
+    info_x = right - info_w - 0.12 * inch
+    draw_box(info_x, y - 0.10 * inch, info_w, 1.15 * inch, lw=1)
     c.setFont("Helvetica-Bold", 10)
-    c.translate(left + 13, y - detail_h + 8)
-    c.rotate(90)
-    c.drawString(0, 0, "P A R T S   D E T A I L")
-    c.restoreState()
+    c.drawString(info_x + 0.10 * inch, y - 0.28 * inch, "WORK ORDER / INVOICE")
+    c.setFont("Helvetica", 8.5)
+    c.drawString(info_x + 0.10 * inch, y - 0.48 * inch, f"WO: {wo.work_order_number or f'WO-{wo.id:06d}'}")
+    c.drawString(info_x + 0.10 * inch, y - 0.63 * inch, f"Invoice: {invoice.invoice_number if invoice else '-'}")
+    c.drawString(info_x + 0.10 * inch, y - 0.78 * inch, f"Date: {wo.created_at.strftime('%m/%d/%Y %I:%M %p') if wo.created_at else '-'}")
+    c.drawString(info_x + 0.10 * inch, y - 0.93 * inch, f"Status: {wo.status or '-'}")
 
-    px = left + bar_w
-    pw = width - 260 - px
-    box(px, y, pw, detail_h)
-    header_h = 18
-    box(px, y, pw, header_h, fill=colors.whitesmoke)
-    txt(px + 6, y - 12, "Part / Misc", "Helvetica-Bold", 7.5)
-    txt(px + 110, y - 12, "Description / Ref Number", "Helvetica-Bold", 7.5)
-    txt_right(px + pw - 135, y - 12, "Quantity", "Helvetica-Bold", 7.5)
-    txt_right(px + pw - 78, y - 12, "Price", "Helvetica-Bold", 7.5)
-    txt_right(px + pw - 8, y - 12, "Ext Price", "Helvetica-Bold", 7.5)
+    y -= header_h + 0.12 * inch
 
-    row_y = y - header_h
-    row_h = 17
+    # Bill To / Ship To
+    bill_h = 0.95 * inch
+    mid = left + (right - left) / 2
+    draw_box(left, y, mid - left - 0.05 * inch, bill_h)
+    draw_box(mid + 0.05 * inch, y, right - (mid + 0.05 * inch), bill_h)
+
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(left + 0.10 * inch, y - 0.18 * inch, "Bill To:")
+    c.drawString(mid + 0.15 * inch, y - 0.18 * inch, "Vehicle / Service:")
+    c.setFont("Helvetica", 8.5)
+
+    cust_name = wo.customer.name if wo.customer else "-"
+    cust_phone = wo.customer.phone if wo.customer and wo.customer.phone else ""
+    cust_email = wo.customer.email if wo.customer and wo.customer.email else ""
+    ship_lines = [
+        cust_name,
+        company_name if wo.company else "",
+        cust_phone,
+        cust_email,
+    ]
+    yy = y - 0.35 * inch
+    for line in [cust_name, cust_phone, cust_email]:
+        if line:
+            c.drawString(left + 0.10 * inch, yy, str(line))
+            yy -= 0.15 * inch
+
+    vehicle_txt = f"{(wo.vehicle.year or '') if wo.vehicle else ''} {(wo.vehicle.make or '') if wo.vehicle else ''} {(wo.vehicle.model or '') if wo.vehicle else ''}".strip() or "-"
+    c.drawString(mid + 0.15 * inch, y - 0.35 * inch, f"Vehicle: {vehicle_txt}")
+    c.drawString(mid + 0.15 * inch, y - 0.50 * inch, f"Unit: {wo.vehicle.unit_number if wo.vehicle and wo.vehicle.unit_number else '-'}")
+    c.drawString(mid + 0.15 * inch, y - 0.65 * inch, f"VIN: {wo.vehicle.vin if wo.vehicle and wo.vehicle.vin else '-'}")
+    mech_name = (wo.mechanic.full_name or wo.mechanic.username) if wo.mechanic else "-"
+    c.drawString(mid + 0.15 * inch, y - 0.80 * inch, f"Mechanic: {mech_name}")
+
+    y -= bill_h + 0.12 * inch
+
+    # Description / notes box
+    desc_h = 0.95 * inch
+    draw_box(left, y, right - left, desc_h)
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(left + 0.10 * inch, y - 0.18 * inch, "Job Description / Notes")
+    c.setFont("Helvetica", 8.5)
+    desc = (wo.description or "").strip() or "-"
+    yy = y - 0.36 * inch
+    for line in textwrap.wrap(desc, width=110)[:4]:
+        c.drawString(left + 0.10 * inch, yy, line)
+        yy -= 0.14 * inch
+
+    y -= desc_h + 0.15 * inch
+
+    # Parts table
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(left, y, "PARTS DETAIL")
+    y -= 0.10 * inch
+
+    cols = {
+        "desc": left + 0.10 * inch,
+        "qty": right - 2.35 * inch,
+        "unit": right - 1.50 * inch,
+        "total": right - 0.12 * inch,
+    }
+    row_h = 0.23 * inch
+    table_w = right - left
+    draw_box(left, y, table_w, row_h, fill=colors.lightgrey)
+    c.setFont("Helvetica-Bold", 8.5)
+    c.drawString(cols["desc"], y - 0.16 * inch, "Description / Ref Number")
+    c.drawRightString(cols["qty"], y - 0.16 * inch, "Qty")
+    c.drawRightString(cols["unit"], y - 0.16 * inch, "Price")
+    c.drawRightString(cols["total"], y - 0.16 * inch, "Ext Price")
+    y -= row_h
+
+    parts_total = Decimal("0.00")
     parts = list(wo.items or [])
     if not parts:
-        box(px, row_y, pw, row_h)
-        txt(px + 8, row_y - 11, "No parts added", "Helvetica", 8)
-        row_y -= row_h
+        draw_box(left, y, table_w, row_h)
+        c.setFont("Helvetica", 8.5)
+        c.drawString(left + 0.10 * inch, y - 0.16 * inch, "No parts added")
+        y -= row_h
     else:
-        for it in parts[:5]:
-            box(px, row_y, pw, row_h)
-            txt(px + 6, row_y - 11, str(it.inventory_item_id or ""), "Helvetica", 7)
-            txt(px + 110, row_y - 11, (it.description_snapshot or "-")[:42], "Helvetica", 7)
-            txt_right(px + pw - 135, row_y - 11, f"{float(it.qty or 0):g}", "Helvetica", 7)
-            txt_right(px + pw - 78, row_y - 11, money(it.unit_price_snapshot), "Helvetica", 7)
-            txt_right(px + pw - 8, row_y - 11, money(it.line_total), "Helvetica", 7)
-            row_y -= row_h
+        for it in parts[:10]:
+            ensure_space(2.25 * inch)
+            draw_box(left, y, table_w, row_h)
+            c.setFont("Helvetica", 8)
+            desc_line = (it.description_snapshot or "-")[:55]
+            c.drawString(cols["desc"], y - 0.16 * inch, desc_line)
+            c.drawRightString(cols["qty"], y - 0.16 * inch, f"{float(it.qty or 0):g}")
+            c.drawRightString(cols["unit"], y - 0.16 * inch, money(it.unit_price_snapshot))
+            c.drawRightString(cols["total"], y - 0.16 * inch, money(it.line_total))
+            parts_total += _q2(it.line_total)
+            y -= row_h
 
-    # Labor bar and table
-    lx = px + pw + 8
-    lw = right - lx
-    box(lx, y, bar_w, detail_h, fill=colors.lightgrey)
-    c.saveState()
+    y -= 0.12 * inch
+
+    # Labor table
     c.setFont("Helvetica-Bold", 10)
-    c.translate(lx + 13, y - detail_h + 8)
-    c.rotate(90)
-    c.drawString(0, 0, "L A B O R   D E T A I L")
-    c.restoreState()
+    c.drawString(left, y, "LABOR DETAIL")
+    y -= 0.10 * inch
+    draw_box(left, y, table_w, row_h, fill=colors.lightgrey)
+    c.setFont("Helvetica-Bold", 8.5)
+    c.drawString(cols["desc"], y - 0.16 * inch, "Description")
+    c.drawRightString(right - 2.35 * inch, y - 0.16 * inch, "Hours")
+    c.drawRightString(right - 1.50 * inch, y - 0.16 * inch, "Rate")
+    c.drawRightString(cols["total"], y - 0.16 * inch, "Price")
+    y -= row_h
 
-    tx = lx + bar_w
-    tw = right - tx
-    box(tx, y, tw, detail_h)
-    box(tx, y, tw, header_h, fill=colors.whitesmoke)
-    txt(tx + 8, y - 12, "Description", "Helvetica-Bold", 7.5)
-    txt_right(tx + tw - 78, y - 12, "Price", "Helvetica-Bold", 7.5)
-    row_y = y - header_h
+    labor_total = Decimal("0.00")
     labors = list(wo.labors or [])
     if not labors:
-        box(tx, row_y, tw, row_h)
-        txt(tx + 8, row_y - 11, "No labor added", "Helvetica", 8)
-        row_y -= row_h
+        draw_box(left, y, table_w, row_h)
+        c.setFont("Helvetica", 8.5)
+        c.drawString(left + 0.10 * inch, y - 0.16 * inch, "No labor added")
+        y -= row_h
     else:
-        for lb in labors[:5]:
-            box(tx, row_y, tw, row_h)
-            txt(tx + 8, row_y - 11, (lb.description or "-")[:28], "Helvetica", 7)
-            txt_right(tx + tw - 8, row_y - 11, money(lb.line_total), "Helvetica", 7)
-            row_y -= row_h
+        for lb in labors[:10]:
+            ensure_space(1.8 * inch)
+            draw_box(left, y, table_w, row_h)
+            c.setFont("Helvetica", 8)
+            c.drawString(cols["desc"], y - 0.16 * inch, (lb.description or "-")[:55])
+            c.drawRightString(right - 2.35 * inch, y - 0.16 * inch, f"{float(lb.hours or 0):g}")
+            c.drawRightString(right - 1.50 * inch, y - 0.16 * inch, money(lb.rate))
+            c.drawRightString(cols["total"], y - 0.16 * inch, money(lb.line_total))
+            labor_total += _q2(lb.line_total)
+            y -= row_h
 
-    # ========= BOTTOM AREA =========
-    y = 132
+    y -= 0.14 * inch
 
-    # Left warranty note
-    left_note_w = 248
-    left_note_h = 88
-    box(left, y, left_note_w, left_note_h)
-    wrapped(
-        left + 6, y - 12,
-        "Estimate good for 30 days. Not responsible for damage caused by theft, fire or acts of God. "
-        "This charge represents cost and profits to motor vehicles of materials and supplies sold by us and/or furnished by outside suppliers. "
-        "Waste disposal sold to customer. Under no circumstances are labor charges returnable.",
-        62, leading=8, font="Helvetica", size=6.7, max_lines=9
-    )
-    txt(left + 6, y - 78, "X _____________________________    Date: ____________", "Helvetica", 7)
+    # Bottom notes + totals
+    notes_w = 4.75 * inch
+    notes_h = 1.45 * inch
+    totals_w = (right - left) - notes_w - 0.10 * inch
+    draw_box(left, y, notes_w, notes_h)
+    draw_box(left + notes_w + 0.10 * inch, y, totals_w, notes_h)
 
-    # Middle policy note
-    mid_note_x = left + left_note_w + 8
-    mid_note_w = 320
-    mid_note_h = 88
-    box(mid_note_x, y, mid_note_w, mid_note_h)
-    wrapped(
-        mid_note_x + 6, y - 12,
-        "ORIGINAL PARTS HAVE TWELVE (12) MONTHS OF WARRANTY SUBJECT TO INSPECTION FROM MANUFACTURER BEFORE "
-        "REPLACEMENT PART IS CREDITED. AFTERMARKET AND REBUILD PARTS HAVE SIX MONTHS (6) OF WARRANTY. "
-        "UNDER NO REASON, TURBOS AND CLUTCHES DO NOT HAVE WARRANTY. LABOR CLAIM WILL NOT PROCESSED.",
-        82, leading=8, font="Helvetica", size=6.5, max_lines=9
-    )
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(left + 0.10 * inch, y - 0.18 * inch, "Terms / Notes")
+    c.setFont("Helvetica", 7.6)
+    notes_text = [
+        "NO RETURNS OR CHANGES ON WARRANTIES, ELECTRIC PARTS, OIL, FLUIDS AND VALVES.",
+        "NO RETURNS OF ANY PART AFTER 3 DAYS OF THE PURCHASE DATE.",
+        "NO RETURNS, EXCHANGES, OR WARRANTIES WITHOUT THE INVOICE.",
+        "NO RETURNS OR EXCHANGES ON SPECIAL ORDERS.",
+        "20 % RESTOCKING FEE WILL BE CHARGED ON ALL RETURNED PARTS.",
+        "THE CORES MUST BE RETURNED BEFORE 6 MONTHS.",
+        "I ACCEPT THE RETURN POLICY. SIGNATURE: __________________________",
+    ]
+    yy = y - 0.36 * inch
+    for line in notes_text:
+        c.drawString(left + 0.10 * inch, yy, line)
+        yy -= 0.14 * inch
 
-    # Totals box
-    totals_x = mid_note_x + mid_note_w + 8
-    totals_w = right - totals_x
-    totals_h = 88
-    box(totals_x, y, totals_w, totals_h)
-    line_y = y - 16
-    for label, value in [
-        ("Charges:", money(Decimal("0.00"))),
-        ("Sublet:", money(Decimal("0.00"))),
-        ("Supplies:", money(Decimal("0.00"))),
-        ("Sub Total:", money(subtotal)),
-        ("Tax:", money(tax)),
-        ("Total:", money(total)),
-    ]:
-        font = "Helvetica-Bold" if label == "Total:" else "Helvetica"
-        size = 9 if label == "Total:" else 8.5
-        txt(totals_x + 8, line_y, label, font, size)
-        txt_right(totals_x + totals_w - 8, line_y, value, font, size)
-        line_y -= 12
+    tx = left + notes_w + 0.20 * inch
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(tx, y - 0.22 * inch, "Parts:")
+    c.drawRightString(right - 0.12 * inch, y - 0.22 * inch, money(parts_total))
+    c.drawString(tx, y - 0.42 * inch, "Labor:")
+    c.drawRightString(right - 0.12 * inch, y - 0.42 * inch, money(labor_total))
+    c.drawString(tx, y - 0.62 * inch, "Sub Total:")
+    c.drawRightString(right - 0.12 * inch, y - 0.62 * inch, money(subtotal))
+    c.drawString(tx, y - 0.82 * inch, "Tax 7%:")
+    c.drawRightString(right - 0.12 * inch, y - 0.82 * inch, money(tax))
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(tx, y - 1.10 * inch, "Total:")
+    c.drawRightString(right - 0.12 * inch, y - 1.10 * inch, money(total))
 
-    c.setFont("Helvetica", 7)
-    c.drawRightString(right, 10, "Page 1 of 1")
+    # Footer/signatures
+    c.setFont("Helvetica", 8)
+    c.line(left, 0.90 * inch, left + 2.6 * inch, 0.90 * inch)
+    c.drawString(left, 0.74 * inch, "Customer Signature")
+    c.line(right - 2.6 * inch, 0.90 * inch, right, 0.90 * inch)
+    c.drawString(right - 2.6 * inch, 0.74 * inch, "Authorized Signature")
+    c.setFont("Helvetica-Oblique", 7.5)
+    c.drawCentredString(width / 2, 0.48 * inch, "Generated by Evolution Truck System")
 
     c.showPage()
     c.save()

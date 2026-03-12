@@ -217,10 +217,16 @@ ALLOWED_WORK_ORDER_STATUS = {"OPEN", "IN_PROGRESS", "DONE", "CANCELLED"}
 class WorkOrderItemAdd(BaseModel):
     inventory_item_id: int
     qty: Decimal = Field(default=Decimal("1.00"), gt=0)
+    unit_price: Optional[Decimal] = Field(default=None, ge=0)
+    markup_percent: Optional[Decimal] = None
 
 
 class WorkOrderItemUpdate(BaseModel):
     qty: Decimal = Field(gt=0)
+
+class WorkOrderItemPriceUpdate(BaseModel):
+    unit_price: Optional[Decimal] = Field(default=None, ge=0)
+    markup_percent: Optional[Decimal] = None
 
 
 class WorkOrderItemOut(BaseModel):
@@ -234,10 +240,32 @@ class WorkOrderItemOut(BaseModel):
     qty: Decimal
     unit_price_snapshot: Decimal
     line_total: Decimal
+    cost_snapshot: Decimal = Decimal("0.00")
 
     added_by_user_id: Optional[int] = None
     created_at: datetime
 
+
+class WorkOrderLaborCreate(BaseModel):
+    description: str
+    hours: Decimal = Field(default=Decimal("1.00"), ge=0)
+    rate: Decimal = Field(default=Decimal("0.00"), ge=0)
+
+class WorkOrderLaborUpdate(BaseModel):
+    description: Optional[str] = None
+    hours: Optional[Decimal] = Field(default=None, ge=0)
+    rate: Optional[Decimal] = Field(default=None, ge=0)
+
+class WorkOrderLaborOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    work_order_id: int
+    description: str
+    hours: Decimal
+    rate: Decimal
+    line_total: Decimal
+    created_at: datetime
 
 class WorkOrderCreate(BaseModel):
     description: str
@@ -409,6 +437,9 @@ class WorkOrderOut(BaseModel):
 
     # ✅ NUEVO: carrito de piezas
     items: List[WorkOrderItemOut] = Field(default_factory=list)
+
+    # ✅ Labor lines
+    labors: List[WorkOrderLaborOut] = Field(default_factory=list)
 
     # ✅ Invoice (si existe)
     invoice: Optional[InvoiceOut] = None

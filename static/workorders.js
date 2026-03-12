@@ -89,21 +89,27 @@ function urlWOItems(id){ return `${urlWorkOrders()}/${id}/items`; }
 function urlWOItem(id, woItemId){ return `${urlWorkOrders()}/${id}/items/${woItemId}`; }
 function urlWOStatus(id){ return `${urlWorkOrders()}/${id}/status`; }
 function urlCreateInvoice(id){ return `${urlWorkOrders()}/${id}/create-invoice`; }
+function urlWOLabors(id){ return `${urlWorkOrders()}/${id}/labors`; }
+function urlWOLabor(id, laborId){ return `${urlWorkOrders()}/${id}/labors/${laborId}`; }
+function urlWOItemPricing(id, woItemId){ return `${urlWorkOrders()}/${id}/items/${woItemId}/pricing`; }
 
 // inventory search: intenta /inventory primero; si falla usa /inventory/items
 async function inventorySearch(q){
+  const term = (q || "").trim();
+  if (!term) return [];
+
   const params = new URLSearchParams();
-  if (q) params.set("q", q);
-  try{
-    const u = params.toString()
-      ? `${ENDPOINTS.inventoryA(API_BASE)}?${params}`
-      : ENDPOINTS.inventoryA(API_BASE);
-    return await apiFetch(u, { headers: authHeaders() });
-  }catch{
-    const u2 = params.toString()
-      ? `${ENDPOINTS.inventoryItems(API_BASE)}?${params}`
-      : ENDPOINTS.inventoryItems(API_BASE);
-    return await apiFetch(u2, { headers: authHeaders() });
+  params.set("q", term);
+  params.set("limit", "20");
+
+  try {
+    return await apiFetch(`/api/inventory?${params.toString()}`, {
+      headers: authHeaders()
+    });
+  } catch (e) {
+    return await apiFetch(`/inventory?${params.toString()}`, {
+      headers: authHeaders()
+    });
   }
 }
 
@@ -155,6 +161,8 @@ function money(val){
   if (!Number.isFinite(n)) return "$0.00";
   return `$${n.toFixed(2)}`;
 }
+function num(val, fallback=0){ const n = Number(val); return Number.isFinite(n) ? n : fallback; }
+function clone(obj){ return JSON.parse(JSON.stringify(obj || {})); }
 
 // --------------------
 // Loaders
@@ -222,6 +230,9 @@ function renderWorkOrders(){
           <div class="actions">
             <button class="ghost" data-action="pdf" data-id="${wo.id}">PDF</button>
             <button class="secondary" data-action="open" data-id="${wo.id}">Open</button>
+            ${["OPEN","IN_PROGRESS"].includes(String(wo.status || "").toUpperCase())
+              ? `<button class="secondary" data-action="delete" data-id="${wo.id}">Delete</button>`
+              : ""}
           </div>
         </td>
       </tr>
@@ -240,11 +251,33 @@ async function onRowAction(e){
   if (!Number.isFinite(id)) return;
 
   if (action === "pdf"){
-    window.open(urlWOPdf(id), "_blank");
+    const pdfUrl = urlWOPdf(id);
+    const w = window.open(pdfUrl, "_blank");
+    if (!w) window.location.href = pdfUrl;
     return;
   }
   if (action === "open"){
     await openDetails(id);
+    return;
+  }
+  if (action === "delete"){
+    const wo = WORK_ORDERS.find(x => x.id === id);
+    const st = String(wo?.status || "").toUpperCase();
+    if (st === "DONE" || st === "CANCELLED"){
+      alert("Closed/cancelled work orders cannot be deleted.");
+      return;
+    }
+    if (!confirm("Delete this work order?\n\nIf it has parts, stock will be returned.")) return;
+    try{
+      setMsg("listMsg", "Deleting work order...");
+      await apiFetch(urlWO(id), { method: "DELETE", headers: authHeaders() });
+      await loadWorkOrders();
+      renderWorkOrders();
+      setMsg("listMsg", "Work order deleted.", false);
+    }catch(e){
+      setMsg("listMsg", e.message || "Error deleting work order", true);
+    }
+    return;
   }
 }
 
@@ -255,13 +288,13 @@ function fillCustomerSelect(selectId, selectedId=null){
   const sel = $(selectId);
   if (!sel) return;
 
-  const opts = [`<option value="">Select customer...</option>`].concat(
-    CUSTOMERS
-      .filter(c => c.is_active !== false)
-      .sort((a,b) => (a.name||"").localeCompare(b.name||""))
-      .map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`)
-  );
-  sel.innerHTML = opts.join("");
+  const list = CUSTOMERS
+    .filter(c => c.is_active !== false)
+    .sort((a,b) => (a.name||"").localeCompare(b.name||""));
+
+  cacheSelectOptions(selectId, list, c => c.name || `#${c.id}`);
+  const first = `<option value="">Select customer...</option>`;
+  renderCachedSelect(selectId, $(selectId.includes("details") ? "detailsCustomerSearch" : "customerSearch")?.value || "", first);
   if (selectedId) sel.value = String(selectedId);
 }
 
@@ -274,15 +307,13 @@ function fillCompanyForCustomer(selectId, customerId, selectedId=null){
   if (!sel) return;
 
   const cust = customerId ? getCustomerById(customerId) : null;
-  const companies = cust?.companies || [];
-
-  const opts = [`<option value="">Select company (optional)...</option>`].concat(
-    companies
+  const companies = (cust?.companies || [])
       .filter(x => x.is_active !== false)
-      .sort((a,b) => (a.name||"").localeCompare(b.name||""))
-      .map(x => `<option value="${x.id}">${escapeHtml(x.name)}</option>`)
-  );
-  sel.innerHTML = opts.join("");
+      .sort((a,b) => (a.name||"").localeCompare(b.name||""));
+
+  cacheSelectOptions(selectId, companies, x => x.name || `#${x.id}`);
+  const first = `<option value="">Select company (optional)...</option>`;
+  renderCachedSelect(selectId, $(selectId.includes("details") ? "detailsCompanySearch" : "companySearch")?.value || "", first);
   if (selectedId) sel.value = String(selectedId);
 }
 
@@ -294,13 +325,32 @@ function fillVehiclesForCustomer(selectId, customerId, selectedId=null){
     ? VEHICLES.filter(v => v.is_active !== false && v.customer_id === customerId)
     : [];
 
-  const opts = [`<option value="">Select vehicle (optional)...</option>`].concat(
-    list
-      .sort((a,b) => (a.unit_number||"").localeCompare(b.unit_number||""))
-      .map(v => `<option value="${v.id}">${escapeHtml(fmtVehicle(v))}</option>`)
-  );
-  sel.innerHTML = opts.join("");
+  const sorted = list.sort((a,b) => (a.unit_number||"").localeCompare(b.unit_number||""));
+  cacheSelectOptions(selectId, sorted, v => fmtVehicle(v));
+  const first = `<option value="">Select vehicle (optional)...</option>`;
+  renderCachedSelect(selectId, $(selectId.includes("details") ? "detailsVehicleSearch" : "vehicleSearch")?.value || "", first);
   if (selectedId) sel.value = String(selectedId);
+}
+
+
+const SELECT_CACHE = {};
+
+function cacheSelectOptions(selectId, list, labelFn){
+  SELECT_CACHE[selectId] = (list || []).map(x => ({ value: String(x.id), label: labelFn(x), raw: x }));
+}
+
+function renderCachedSelect(selectId, query="", firstOption=""){
+  const sel = $(selectId);
+  if (!sel) return;
+  const q = String(query || "").trim().toLowerCase();
+  const rows = (SELECT_CACHE[selectId] || []).filter(x => !q || x.label.toLowerCase().includes(q));
+  sel.innerHTML = [firstOption].concat(rows.map(x => `<option value="${x.value}">${escapeHtml(x.label)}</option>`)).join("");
+}
+
+function bindFilterInput(inputId, selectId, firstOption=""){
+  const input = $(inputId);
+  if (!input) return;
+  input.addEventListener("input", ()=>renderCachedSelect(selectId, input.value, firstOption));
 }
 
 function fillMechanics(selectId, selectedId=null){
@@ -321,14 +371,13 @@ function fillMechanics(selectId, selectedId=null){
 // Tabs
 // --------------------
 function setTab(tab){
-  ["info","parts","invoice"].forEach(t=>{
-    const b = t==="info" ? $("tabInfo") : t==="parts" ? $("tabParts") : $("tabInvoice");
+  ["info","parts","labor","invoice"].forEach(t=>{
+    const map = {info:"tabInfo", parts:"tabParts", labor:"tabLabor", invoice:"tabInvoice"};
+    const b = $(map[t]);
     if (b) b.classList.toggle("active", t===tab);
+    const p = $("panel" + t.charAt(0).toUpperCase() + t.slice(1));
+    if (p) p.classList.toggle("active", t===tab);
   });
-
-  $("panelInfo").classList.toggle("active", tab==="info");
-  $("panelParts").classList.toggle("active", tab==="parts");
-  $("panelInvoice").classList.toggle("active", tab==="invoice");
 }
 
 // --------------------
@@ -589,6 +638,7 @@ function renderDetails(wo){
   $("detailsMeta").textContent = createdAt ? `Created: ${createdAt}` : "";
 
   renderWOItems(wo);
+  renderWOLabor(wo);
   renderInvoice(wo);
 }
 
@@ -597,26 +647,29 @@ function renderWOItems(wo){
   const items = wo.items || [];
 
   if (!items.length){
-    tb.innerHTML = `<tr><td colspan="5" class="muted">No parts added yet.</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="7" class="muted">No parts added yet.</td></tr>`;
     return;
   }
 
   tb.innerHTML = items.map(it=>{
     const qty = Number(it.qty ?? 0);
     const unit = Number(it.unit_price_snapshot ?? 0);
+    const cost = Number(it.cost_snapshot ?? 0);
+    const markup = cost > 0 ? (((unit - cost) / cost) * 100) : 0;
     const total = Number(it.line_total ?? (qty*unit));
 
     return `
       <tr>
         <td>${escapeHtml(it.description_snapshot || "")}</td>
-        <td class="rightNum">
-          <input data-woitem-qty="${it.id}" style="min-width:90px;" value="${qty}" />
-        </td>
-        <td class="rightNum">${money(unit)}</td>
+        <td class="rightNum"><input data-woitem-qty="${it.id}" style="min-width:90px;" value="${qty}" /></td>
+        <td class="rightNum">${money(cost)}</td>
+        <td class="rightNum"><input data-woitem-markup="${it.id}" style="min-width:90px;" value="${markup.toFixed(2)}" /></td>
+        <td class="rightNum"><input data-woitem-unit="${it.id}" style="min-width:100px;" value="${unit.toFixed(2)}" /></td>
         <td class="rightNum">${money(total)}</td>
         <td>
           <div class="actions">
             <button class="ghost" data-woitem-save="${it.id}">Save Qty</button>
+            <button class="ghost" data-woitem-price="${it.id}">Save Price</button>
             <button class="secondary" data-woitem-del="${it.id}">Delete</button>
           </div>
         </td>
@@ -629,7 +682,6 @@ function renderWOItems(wo){
       const woItemId = parseInt(b.getAttribute("data-woitem-save"), 10);
       const inp = tb.querySelector(`input[data-woitem-qty="${woItemId}"]`);
       const newQty = (inp?.value || "").trim();
-
       try{
         setMsg("detailsMsg","Updating qty...");
         await apiFetch(urlWOItem(CURRENT_WO.id, woItemId), {
@@ -639,9 +691,25 @@ function renderWOItems(wo){
         });
         await refreshDetails();
         setMsg("detailsMsg","Qty updated.", false);
-      }catch(e){
-        setMsg("detailsMsg", e.message || "Error updating qty", true);
-      }
+      }catch(e){ setMsg("detailsMsg", e.message || "Error updating qty", true); }
+    });
+  });
+
+  tb.querySelectorAll("button[data-woitem-price]").forEach(b=>{
+    b.addEventListener("click", async ()=>{
+      const woItemId = parseInt(b.getAttribute("data-woitem-price"), 10);
+      const unitInput = tb.querySelector(`input[data-woitem-unit="${woItemId}"]`);
+      const markupInput = tb.querySelector(`input[data-woitem-markup="${woItemId}"]`);
+      try{
+        setMsg("detailsMsg","Updating price...");
+        await apiFetch(urlWOItemPricing(CURRENT_WO.id, woItemId), {
+          method:"PATCH",
+          headers: authHeaders(),
+          body: JSON.stringify({ unit_price: unitInput?.value || null, markup_percent: markupInput?.value || null }),
+        });
+        await refreshDetails();
+        setMsg("detailsMsg","Price updated.", false);
+      }catch(e){ setMsg("detailsMsg", e.message || "Error updating price", true); }
     });
   });
 
@@ -649,18 +717,60 @@ function renderWOItems(wo){
     b.addEventListener("click", async ()=>{
       const woItemId = parseInt(b.getAttribute("data-woitem-del"), 10);
       if (!confirm("Delete this part line? Stock will be returned.")) return;
-
       try{
         setMsg("detailsMsg","Deleting item...");
-        await apiFetch(urlWOItem(CURRENT_WO.id, woItemId), {
-          method:"DELETE",
-          headers: authHeaders(),
-        });
+        await apiFetch(urlWOItem(CURRENT_WO.id, woItemId), { method:"DELETE", headers: authHeaders() });
         await refreshDetails();
         setMsg("detailsMsg","Item deleted.", false);
-      }catch(e){
-        setMsg("detailsMsg", e.message || "Error deleting item", true);
-      }
+      }catch(e){ setMsg("detailsMsg", e.message || "Error deleting item", true); }
+    });
+  });
+}
+
+function renderWOLabor(wo){
+  const tb = $("laborTbody");
+  if (!tb) return;
+  const rows = wo.labors || [];
+  if (!rows.length){
+    tb.innerHTML = `<tr><td colspan="5" class="muted">No labor lines yet.</td></tr>`;
+    return;
+  }
+  tb.innerHTML = rows.map(lb => `
+    <tr>
+      <td><input data-labor-desc="${lb.id}" style="min-width:260px;" value="${escapeHtml(lb.description || "")}" /></td>
+      <td class="rightNum"><input data-labor-hours="${lb.id}" style="min-width:90px;" value="${Number(lb.hours ?? 0)}" /></td>
+      <td class="rightNum"><input data-labor-rate="${lb.id}" style="min-width:100px;" value="${Number(lb.rate ?? 0).toFixed(2)}" /></td>
+      <td class="rightNum">${money(lb.line_total)}</td>
+      <td><div class="actions"><button class="ghost" data-labor-save="${lb.id}">Save</button><button class="secondary" data-labor-del="${lb.id}">Delete</button></div></td>
+    </tr>
+  `).join("");
+
+  tb.querySelectorAll("button[data-labor-save]").forEach(b=>{
+    b.addEventListener("click", async ()=>{
+      const id = parseInt(b.getAttribute("data-labor-save"), 10);
+      try{
+        setMsg("detailsMsg","Saving labor...");
+        await apiFetch(urlWOLabor(CURRENT_WO.id, id), {
+          method:"PATCH", headers: authHeaders(),
+          body: JSON.stringify({
+            description: tb.querySelector(`input[data-labor-desc="${id}"]`)?.value || "",
+            hours: tb.querySelector(`input[data-labor-hours="${id}"]`)?.value || 0,
+            rate: tb.querySelector(`input[data-labor-rate="${id}"]`)?.value || 0,
+          })
+        });
+        await refreshDetails();
+        setMsg("detailsMsg","Labor updated.", false);
+      }catch(e){ setMsg("detailsMsg", e.message || "Error updating labor", true); }
+    });
+  });
+  tb.querySelectorAll("button[data-labor-del]").forEach(b=>{
+    b.addEventListener("click", async ()=>{
+      const id = parseInt(b.getAttribute("data-labor-del"), 10);
+      if (!confirm("Delete this labor line?")) return;
+      try{
+        await apiFetch(urlWOLabor(CURRENT_WO.id, id), { method:"DELETE", headers: authHeaders() });
+        await refreshDetails();
+      }catch(e){ setMsg("detailsMsg", e.message || "Error deleting labor", true); }
     });
   });
 }
@@ -711,8 +821,12 @@ async function openDetails(id){
   try{
     const wo = await fetchWorkOrder(id);
     renderDetails(wo);
+    renderInvResults([]);
+    $("invSearch").value = "";
     setMsg("detailsMsg","",false);
   }catch(e){
+    CURRENT_WO = null;
+    renderInvResults([]);
     setMsg("detailsMsg", e.message || "Error loading work order", true);
   }
 }
@@ -809,76 +923,127 @@ async function saveLinks(){
 // --------------------
 function renderInvResults(rows){
   const tb = $("invResults");
+  if (!tb) return;
   const items = Array.isArray(rows) ? rows : (rows?.items || []);
 
   if (!items.length){
-    tb.innerHTML = `<tr><td colspan="6" class="muted">No inventory results.</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="7" class="muted">No inventory results.</td></tr>`;
     return;
   }
 
-  tb.innerHTML = items.slice(0, 40).map(it=>{
+  tb.innerHTML = items.slice(0, 30).map(it=>{
     const onHand = Number(it.quantity_in_stock ?? it.stock ?? 0);
     const code = it.part_code || it.sku || `#${it.id}`;
     const name = it.part_name || it.name || it.description || `Item #${it.id}`;
-    const price = Number(it.sale_price_base ?? it.price ?? 0);
+    const cost = Number(it.cost_price ?? 0);
+    const base = Number(it.sale_price_base ?? it.price ?? 0);
+    const markup = cost > 0 ? (((base - cost) / cost) * 100) : 0;
 
     return `
       <tr>
         <td>${escapeHtml(code)}</td>
         <td>${escapeHtml(name)}</td>
         <td class="rightNum">${onHand}</td>
-        <td class="rightNum">${money(price)}</td>
-        <td class="rightNum">
-          <input data-inv-qty="${it.id}" style="min-width:90px;" value="1" />
-        </td>
-        <td>
-          <button class="ghost" data-add-inv="${it.id}">Add</button>
-        </td>
+        <td class="rightNum">${money(cost)}</td>
+        <td class="rightNum"><input data-inv-markup="${it.id}" style="min-width:90px;" value="${markup.toFixed(2)}" /></td>
+        <td class="rightNum"><input data-inv-unit="${it.id}" style="min-width:100px;" value="${base.toFixed(2)}" /></td>
+        <td class="rightNum"><input data-inv-qty="${it.id}" style="min-width:90px;" value="1" /></td>
+        <td><button class="ghost" data-add-inv="${it.id}">Add</button></td>
       </tr>
     `;
   }).join("");
 
   tb.querySelectorAll("button[data-add-inv]").forEach(b=>{
     b.addEventListener("click", async ()=>{
-      if (!CURRENT_WO?.id){
-        setMsg("detailsMsg","Open a work order first.", true);
-        return;
-      }
-
+      if (!CURRENT_WO?.id){ setMsg("detailsMsg","Open a work order first.", true); return; }
       const invId = parseInt(b.getAttribute("data-add-inv"), 10);
-      const inp = tb.querySelector(`input[data-inv-qty="${invId}"]`);
-      const qty = (inp?.value || "1").trim();
-
+      const qty = (tb.querySelector(`input[data-inv-qty="${invId}"]`)?.value || "1").trim();
+      const unit_price = (tb.querySelector(`input[data-inv-unit="${invId}"]`)?.value || "0").trim();
+      const markup_percent = (tb.querySelector(`input[data-inv-markup="${invId}"]`)?.value || "0").trim();
       try{
         setMsg("detailsMsg","Adding part (this will decrement stock)...");
         await apiFetch(urlWOItems(CURRENT_WO.id), {
           method:"POST",
           headers: authHeaders(),
-          body: JSON.stringify({ inventory_item_id: invId, qty }),
+          body: JSON.stringify({ inventory_item_id: invId, qty, unit_price, markup_percent }),
         });
         await refreshDetails();
         setMsg("detailsMsg","Part added.", false);
-      }catch(e){
-        setMsg("detailsMsg", e.message || "Error adding part", true);
-      }
+        setTab("parts");
+      }catch(e){ setMsg("detailsMsg", e.message || "Error adding part", true); }
     });
   });
 }
 
 async function doInvSearch(){
-  const q = ($("invSearch").value || "").trim();
-  if (!q){
-    setMsg("detailsMsg","Type something to search inventory.", true);
+  if (!CURRENT_WO?.id){
+    setMsg("detailsMsg", "Open a work order first.", true);
     return;
   }
+
+  const q = ($("invSearch")?.value || "").trim();
+
+  if (!q){
+    renderInvResults([]);
+    setMsg("detailsMsg", "Type a part name or part number.", false);
+    return;
+  }
+
   try{
-    setMsg("detailsMsg","Searching inventory...");
+    setMsg("detailsMsg", "Searching inventory...");
     const rows = await inventorySearch(q);
     renderInvResults(rows);
-    setMsg("detailsMsg","", false);
+    setMsg("detailsMsg", rows?.length ? "" : "No inventory results.", false);
   }catch(e){
-    setMsg("detailsMsg", e.message || "Inventory search failed", true);
+    console.error(e);
+    renderInvResults([]);
+    setMsg("detailsMsg", e.message || "Error searching inventory.", true);
   }
+}
+
+// --------------------
+// PRINT
+// --------------------
+function buildPrintableHtml(wo){
+  const parts = (wo.items || []).map(it => `<tr><td>${escapeHtml(it.description_snapshot || "")}</td><td style="text-align:right;">${Number(it.qty||0)}</td><td style="text-align:right;">${money(it.unit_price_snapshot)}</td><td style="text-align:right;">${money(it.line_total)}</td></tr>`).join("") || `<tr><td colspan="4">No parts.</td></tr>`;
+  const labors = (wo.labors || []).map(lb => `<tr><td>${escapeHtml(lb.description || "")}</td><td style="text-align:right;">${money(lb.line_total)}</td></tr>`).join("") || `<tr><td colspan="2">No labor.</td></tr>`;
+  const inv = wo.invoice || {};
+  const total = inv.total ?? ((wo.items || []).reduce((a,b)=>a+num(b.line_total),0) + (wo.labors || []).reduce((a,b)=>a+num(b.line_total),0));
+  return `<!DOCTYPE html><html><head><title>${escapeHtml(wo.work_order_number || `WO-${wo.id}`)}</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111} h1,h2,h3{margin:0 0 8px} .meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0 18px} table{width:100%;border-collapse:collapse;margin-top:8px} th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left} .tot{margin-top:18px;font-size:18px;font-weight:700;text-align:right}</style></head><body><h1>Work Order ${escapeHtml(wo.work_order_number || `WO-${wo.id}`)}</h1><div class="meta"><div><b>Customer:</b> ${escapeHtml(wo.customer?.name || "-")}</div><div><b>Company:</b> ${escapeHtml(wo.company?.name || "-")}</div><div><b>Vehicle:</b> ${escapeHtml(wo.vehicle ? fmtVehicle(wo.vehicle) : "-")}</div><div><b>Status:</b> ${escapeHtml(wo.status || "-")}</div><div><b>Mechanic:</b> ${escapeHtml(wo.mechanic?.full_name || wo.mechanic?.username || "-")}</div><div><b>Date:</b> ${escapeHtml(String(wo.created_at || ""))}</div></div><h3>Description</h3><div>${escapeHtml(wo.description || "-")}</div><h3 style="margin-top:20px;">Parts</h3><table><thead><tr><th>Description</th><th style="text-align:right;">Qty</th><th style="text-align:right;">Unit</th><th style="text-align:right;">Total</th></tr></thead><tbody>${parts}</tbody></table><h3 style="margin-top:20px;">Labor</h3><table><thead><tr><th>Description</th><th style="text-align:right;">Amount</th></tr></thead><tbody>${labors}</tbody></table><div class="tot">Total: ${money(total)}</div></body></html>`;
+}
+
+function printCurrentWorkOrder(){
+  if (!CURRENT_WO?.id) return;
+  const pdfUrl = urlWOPdf(CURRENT_WO.id);
+
+  let frame = document.getElementById("printPdfFrame");
+  if (!frame){
+    frame = document.createElement("iframe");
+    frame.id = "printPdfFrame";
+    frame.style.position = "fixed";
+    frame.style.right = "0";
+    frame.style.bottom = "0";
+    frame.style.width = "0";
+    frame.style.height = "0";
+    frame.style.border = "0";
+    document.body.appendChild(frame);
+  }
+
+  setMsg("detailsMsg", "Preparing print...");
+
+  frame.onload = () => {
+    try{
+      frame.contentWindow.focus();
+      frame.contentWindow.print();
+      setMsg("detailsMsg", "", false);
+    }catch(e){
+      const w = window.open(pdfUrl, "_blank");
+      if (!w) window.location.href = pdfUrl;
+      setMsg("detailsMsg", "Opened PDF for printing.", false);
+    }
+  };
+
+  frame.src = pdfUrl + (pdfUrl.includes("?") ? "&" : "?") + "print=1&t=" + Date.now();
 }
 
 // --------------------
@@ -984,12 +1149,16 @@ async function init(){
   // tabs
   $("tabInfo").addEventListener("click", ()=>setTab("info"));
   $("tabParts").addEventListener("click", ()=>setTab("parts"));
+  $("tabLabor").addEventListener("click", ()=>setTab("labor"));
   $("tabInvoice").addEventListener("click", ()=>setTab("invoice"));
 
   // details actions
+  $("printBtn").addEventListener("click", printCurrentWorkOrder);
   $("pdfBtn").addEventListener("click", ()=>{
     if (!CURRENT_WO?.id) return;
-    window.open(urlWOPdf(CURRENT_WO.id), "_blank");
+    const pdfUrl = urlWOPdf(CURRENT_WO.id);
+    const w = window.open(pdfUrl, "_blank");
+    if (!w) window.location.href = pdfUrl;
   });
 
   $("detailsRefreshBtn").addEventListener("click", async ()=>{
@@ -1012,6 +1181,30 @@ async function init(){
     const cid = Number.isFinite(custId) ? custId : null;
     fillCompanyForCustomer("detailsCompany", cid, null);
     fillVehiclesForCustomer("detailsVehicle", cid, null);
+  });
+
+  // filter inputs for selects
+  bindFilterInput("customerSearch", "customerSelect", `<option value="">Select customer...</option>`);
+  bindFilterInput("companySearch", "companySelect", `<option value="">Select company (optional)...</option>`);
+  bindFilterInput("vehicleSearch", "vehicleSelect", `<option value="">Select vehicle (optional)...</option>`);
+  bindFilterInput("detailsCustomerSearch", "detailsCustomer", `<option value="">Select customer...</option>`);
+  bindFilterInput("detailsCompanySearch", "detailsCompany", `<option value="">Select company (optional)...</option>`);
+  bindFilterInput("detailsVehicleSearch", "detailsVehicle", `<option value="">Select vehicle (optional)...</option>`);
+
+  // labor
+  $("addLaborBtn").addEventListener("click", async ()=>{
+    if (!CURRENT_WO?.id) return setMsg("detailsMsg", "Open a work order first.", true);
+    try{
+      setMsg("detailsMsg", "Adding labor...");
+      await apiFetch(urlWOLabors(CURRENT_WO.id), {
+        method:"POST", headers: authHeaders(),
+        body: JSON.stringify({ description: $("laborDesc").value || "", hours: $("laborHours").value || 0, rate: $("laborRate").value || 0 })
+      });
+      $("laborDesc").value = ""; $("laborHours").value = "1"; $("laborRate").value = "0";
+      await refreshDetails();
+      setTab("labor");
+      setMsg("detailsMsg", "Labor added.", false);
+    }catch(e){ setMsg("detailsMsg", e.message || "Error adding labor", true); }
   });
 
   // parts

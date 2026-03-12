@@ -228,6 +228,28 @@
     .chip.warn{ background:#fff4e5; color:#b56b00; }
     .chip.bad{ background:#fde8e8; color:#b42318; }
 
+    /* ===== INACTIVE ITEMS ===== */
+    .inactive-row{
+      background:#fff5f5 !important;
+      box-shadow:0 8px 18px rgba(225,6,0,.10) !important;
+      border:1px solid rgba(225,6,0,.18);
+    }
+    .inactive-row:hover{
+      transform:translateY(-2px);
+      box-shadow:0 12px 26px rgba(225,6,0,.16) !important;
+    }
+    .inactive-text{
+      color:#b42318 !important;
+      font-weight:900;
+      text-decoration:underline;
+      text-decoration-color:#e10600;
+      text-underline-offset:3px;
+    }
+    .chip.inactive{
+      background:#fde8e8;
+      color:#b42318;
+    }
+
     /* ===== FORM (PRO + MEC) ===== */
     .form-header{
       display:flex;
@@ -832,7 +854,7 @@
     </div>
   </div>
 
-  <script src="/static/inventory.js?v=4"></script>
+  <script src="/static/inventory.js?v=5"></script>
 
   <script>
     document.addEventListener("DOMContentLoaded", () => {
@@ -854,4 +876,3 @@
   </script>
 </body>
 </html>
-

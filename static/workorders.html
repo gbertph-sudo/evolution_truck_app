@@ -173,6 +173,18 @@
     .tabPanel.active{ display:block; }
 
     .rightNum { text-align:right; white-space:nowrap; }
+
+    .searchSelectWrap{ display:flex; flex-direction:column; gap:8px; min-width:260px; flex:1 1 260px; }
+    .searchSelectWrap input{ min-width:unset; width:100%; }
+    .searchHint{ font-size:11px; color:#666; }
+    .lineEditor{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; justify-content:flex-end; }
+    .lineEditor input{ min-width:90px; width:90px; }
+
+    @media print{
+      body * { visibility:hidden !important; }
+      #printArea, #printArea * { visibility:visible !important; }
+      #printArea{ position:absolute; left:0; top:0; width:100%; background:#fff; padding:24px; }
+    }
   </style>
 </head>
 
@@ -216,7 +228,7 @@
               <th style="min-width:190px;">Company</th>
               <th style="min-width:190px;">Vehicle</th>
               <th>Description</th>
-              <th style="min-width:260px;">Actions</th>
+              <th style="min-width:340px;">Actions</th>
             </tr>
           </thead>
           <tbody id="tbody">
@@ -245,7 +257,11 @@
           <div class="miniCard">
             <h3>👥 Customer</h3>
             <div class="miniRow">
-              <select id="customerSelect"></select>
+              <div class="searchSelectWrap">
+                <input id="customerSearch" placeholder="Type customer name..." autocomplete="off" />
+                <select id="customerSelect"></select>
+                <div class="searchHint">Type to filter the list.</div>
+              </div>
               <button class="ghost" id="newCustomerToggleBtn">+ New Customer</button>
             </div>
 
@@ -267,7 +283,10 @@
           <div class="miniCard">
             <h3>🏢 Company</h3>
             <div class="miniRow">
-              <select id="companySelect"></select>
+              <div class="searchSelectWrap">
+                <input id="companySearch" placeholder="Type company name..." autocomplete="off" />
+                <select id="companySelect"></select>
+              </div>
               <button class="ghost" id="newCompanyToggleBtn">+ New Company</button>
             </div>
 
@@ -290,7 +309,10 @@
           <div class="miniCard">
             <h3>🚚 Vehicle</h3>
             <div class="miniRow">
-              <select id="vehicleSelect"></select>
+              <div class="searchSelectWrap">
+                <input id="vehicleSearch" placeholder="Type unit, VIN, make..." autocomplete="off" />
+                <select id="vehicleSelect"></select>
+              </div>
               <button class="ghost" id="newVehicleToggleBtn">+ New Vehicle</button>
             </div>
 
@@ -361,9 +383,11 @@
           <div class="tabs">
             <button class="tabBtn active" data-tab="info" id="tabInfo">Info</button>
             <button class="tabBtn" data-tab="parts" id="tabParts">Parts</button>
+            <button class="tabBtn" data-tab="labor" id="tabLabor">Labor</button>
             <button class="tabBtn" data-tab="invoice" id="tabInvoice">Invoice</button>
           </div>
           <div class="spacer"></div>
+          <button class="ghost" id="printBtn">🖨 Print</button>
           <button class="ghost" id="pdfBtn">📄 PDF</button>
         </div>
 
@@ -402,9 +426,18 @@
             <div class="miniCard">
               <h3>👥 Customer / Company / Vehicle</h3>
               <div class="miniRow">
-                <select id="detailsCustomer"></select>
-                <select id="detailsCompany"></select>
-                <select id="detailsVehicle"></select>
+                <div class="searchSelectWrap">
+                  <input id="detailsCustomerSearch" placeholder="Filter customer..." autocomplete="off" />
+                  <select id="detailsCustomer"></select>
+                </div>
+                <div class="searchSelectWrap">
+                  <input id="detailsCompanySearch" placeholder="Filter company..." autocomplete="off" />
+                  <select id="detailsCompany"></select>
+                </div>
+                <div class="searchSelectWrap">
+                  <input id="detailsVehicleSearch" placeholder="Filter vehicle..." autocomplete="off" />
+                  <select id="detailsVehicle"></select>
+                </div>
                 <button class="ghost" id="saveLinksBtn">Save Links</button>
               </div>
               <div class="muted small" style="margin-top:8px;">
@@ -437,13 +470,15 @@
                     <th style="min-width:120px;">Part Code</th>
                     <th style="min-width:220px;">Name</th>
                     <th style="min-width:120px;">On Hand</th>
-                    <th style="min-width:140px;">Price</th>
-                    <th style="min-width:140px;">Qty</th>
+                    <th style="min-width:110px;">Cost</th>
+                    <th style="min-width:110px;">Markup %</th>
+                    <th style="min-width:140px;">Sale Price</th>
+                    <th style="min-width:100px;">Qty</th>
                     <th style="min-width:140px;">Action</th>
                   </tr>
                 </thead>
                 <tbody id="invResults">
-                  <tr><td colspan="6" class="muted">Search inventory to add parts.</td></tr>
+                  <tr><td colspan="8" class="muted">Type a part name/code and press Search.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -457,12 +492,50 @@
                   <tr>
                     <th>Description</th>
                     <th class="rightNum" style="min-width:90px;">Qty</th>
+                    <th class="rightNum" style="min-width:110px;">Cost</th>
+                    <th class="rightNum" style="min-width:110px;">Markup %</th>
                     <th class="rightNum" style="min-width:120px;">Unit</th>
                     <th class="rightNum" style="min-width:120px;">Total</th>
-                    <th style="min-width:220px;">Actions</th>
+                    <th style="min-width:300px;">Actions</th>
                   </tr>
                 </thead>
                 <tbody id="woItemsTbody">
+                  <tr><td colspan="7" class="muted">Open a work order.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        
+        <!-- LABOR -->
+        <div class="tabPanel" id="panelLabor">
+          <div class="miniCard">
+            <h3>🛠️ Add Labor</h3>
+            <div class="miniRow">
+              <input id="laborDesc" placeholder="Labor description" style="min-width:320px;" />
+              <input id="laborHours" type="number" step="0.01" min="0" value="1" placeholder="Hours" />
+              <input id="laborRate" type="number" step="0.01" min="0" value="0" placeholder="Rate" />
+              <div class="spacer"></div>
+              <button id="addLaborBtn">Add Labor</button>
+            </div>
+            <div class="muted small" style="margin-top:8px;">On screen you edit Description, Hours and Rate. In print/PDF only Description and Amount will be shown.</div>
+          </div>
+
+          <div class="miniCard" style="margin-top:14px;">
+            <h3>🧾 Labor Lines</h3>
+            <div style="margin-top:10px; overflow:auto;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Description</th>
+                    <th class="rightNum" style="min-width:100px;">Hours</th>
+                    <th class="rightNum" style="min-width:120px;">Rate</th>
+                    <th class="rightNum" style="min-width:120px;">Total</th>
+                    <th style="min-width:240px;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="laborTbody">
                   <tr><td colspan="5" class="muted">Open a work order.</td></tr>
                 </tbody>
               </table>
@@ -475,9 +548,9 @@
           <div class="miniCard">
             <h3>🧾 Invoice</h3>
             <div class="miniRow">
-              <button id="createInvoiceBtn">Create Invoice From Parts</button>
+              <button id="createInvoiceBtn">Create / Sync Invoice</button>
               <div class="spacer"></div>
-              <span class="muted small">Creates invoice once, copies PART lines from the cart.</span>
+              <span class="muted small">Creates invoice once, copies PART + LABOR lines from the work order.</span>
             </div>
 
             <div class="grid2" style="margin-top:12px;">
@@ -517,6 +590,8 @@
     </div>
   </div>
 
-  <script src="/static/workorders.js?v=99"></script>
+  <div id="printArea" style="display:none;"></div>
+  <iframe id="printPdfFrame" style="display:none;"></iframe>
+  <script src="/static/workorders.js?v=102"></script>
 </body>
 </html>
