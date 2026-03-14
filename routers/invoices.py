@@ -47,11 +47,13 @@ def _q2(x: Decimal) -> Decimal:
     return (x or Decimal("0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
+
 def _normalize_status(s: str) -> str:
     v = (s or "").strip().upper()
     if v not in ALLOWED_STATUS:
         raise HTTPException(status_code=422, detail=f"Invalid status. Use: {', '.join(sorted(ALLOWED_STATUS))}")
     return v
+
 
 
 def _load_invoice(db: Session, invoice_id: int) -> Invoice:
@@ -69,10 +71,12 @@ def _load_invoice(db: Session, invoice_id: int) -> Invoice:
     return inv
 
 
+
 def _ensure_editable(inv: Invoice) -> None:
     st = (inv.status or "").upper().strip()
     if st in ("PAID", "VOID"):
         raise HTTPException(status_code=422, detail="Invoice is closed. Cannot edit.")
+
 
 
 def _recalc_invoice(inv: Invoice) -> None:
@@ -100,11 +104,26 @@ def _recalc_invoice(inv: Invoice) -> None:
     inv.total = _q2(inv.subtotal + inv.tax + inv.processing_fee)
 
 
+
 def _safe_money(d: Decimal) -> str:
     try:
         return f"${float(d):,.2f}"
     except Exception:
         return "$0.00"
+
+
+
+def _clip(text: object, max_len: int) -> str:
+    s = str(text or "").strip()
+    if len(s) <= max_len:
+        return s
+    return s[: max_len - 3].rstrip() + "..."
+
+
+
+def _clean_line(*parts: object) -> str:
+    vals = [str(p).strip() for p in parts if str(p or "").strip()]
+    return ", ".join(vals)
 
 
 # -------------------------------
@@ -237,114 +256,339 @@ def invoice_pdf(
 ):
     inv = _load_invoice(db, invoice_id)
 
-    # Si quieres mostrar el WO number, lo buscamos por work_order_id
+    wo = None
     wo_number = "-"
     if getattr(inv, "work_order_id", None):
         wo = db.get(WorkOrder, inv.work_order_id)
         if wo:
-            wo_number = wo.work_order_number or f"WO-{wo.id}"
+            wo_number = getattr(wo, "work_order_number", None) or f"WO-{wo.id}"
+
+    vehicle = getattr(wo, "vehicle", None) if wo else None
+
+    vin_full = (
+        getattr(vehicle, "vin", None)
+        or getattr(wo, "vin", None)
+        or getattr(inv, "vin", None)
+        or ""
+    )
+    vin_last8 = vin_full[-8:] if vin_full else "-"
+
+    unit_value = (
+        getattr(vehicle, "unit", None)
+        or getattr(vehicle, "unit_number", None)
+        or getattr(wo, "unit", None)
+        or getattr(wo, "unit_number", None)
+        or "-"
+    )
+
+    year_value = getattr(vehicle, "year", None) or getattr(wo, "year", None) or ""
+    make_value = getattr(vehicle, "make", None) or getattr(wo, "make", None) or ""
+    model_value = getattr(vehicle, "model", None) or getattr(wo, "model", None) or ""
+    vehicle_line = " ".join([str(x).strip() for x in (year_value, make_value, model_value) if str(x).strip()]) or "-"
+
+    cust = getattr(inv, "customer", None)
+    cust_name = getattr(cust, "name", None) or "Walk-in Customer"
+    cust_phone = getattr(cust, "phone", None) or ""
+    cust_email = getattr(cust, "email", None) or ""
+    cust_address_1 = (
+        getattr(cust, "address", None)
+        or getattr(cust, "address1", None)
+        or getattr(cust, "street", None)
+        or ""
+    )
+    cust_address_2 = _clean_line(
+        getattr(cust, "city", None),
+        getattr(cust, "state", None),
+        getattr(cust, "zip_code", None) or getattr(cust, "zip", None),
+    )
+
+    company_name = "EVOLUTION TRUCK CORP"
+    company_addr1 = "17210 NW 24TH AVE"
+    company_addr2 = "MIAMI GARDENS, FL 33056-4611"
+    company_phone = "Phone: 786-899-6360"
+
+    inv_no = inv.invoice_number or f"INV-{inv.id:06d}"
+    inv_date = inv.created_at.strftime("%m/%d/%Y") if getattr(inv, "created_at", None) else datetime.utcnow().strftime("%m/%d/%Y")
+    payment_method = (getattr(inv, "payment_method", None) or "-").upper()
+    status_value = getattr(inv, "status", None) or "-"
+
+    items = list(inv.items or [])
+    if not items:
+        items = [None]
+
+    def item_part_no(it: Optional[InvoiceItem]) -> str:
+        if not it:
+            return "-"
+        for attr in ("part_number", "part_no", "sku", "item_code", "code", "ref_number"):
+            val = getattr(it, attr, None)
+            if val:
+                return str(val)
+        inv_item_id = getattr(it, "inventory_item_id", None)
+        if inv_item_id:
+            return str(inv_item_id)
+        return str(getattr(it, "id", "-"))
+
+    def item_desc(it: Optional[InvoiceItem]) -> str:
+        if not it:
+            return "No items"
+        return getattr(it, "description", None) or getattr(it, "item_type", None) or "Part"
+
+    row_h = 18
+    first_table_top = 590
+    first_bottom_nonlast = 60
+    first_bottom_last = 175
+    next_table_top = 710
+    next_bottom_nonlast = 55
+    next_bottom_last = 145
+    header_h = 22
+
+    first_cap_nonlast = max(1, int((first_table_top - first_bottom_nonlast - header_h) // row_h))
+    first_cap_last = max(1, int((first_table_top - first_bottom_last - header_h) // row_h))
+    next_cap_nonlast = max(1, int((next_table_top - next_bottom_nonlast - header_h) // row_h))
+    next_cap_last = max(1, int((next_table_top - next_bottom_last - header_h) // row_h))
+
+    page_chunks = []
+    total_items = len(items)
+
+    if total_items <= first_cap_last:
+        page_chunks.append(("first_last", items))
+    else:
+        idx = first_cap_nonlast
+        page_chunks.append(("first_nonlast", items[:idx]))
+        remaining = items[idx:]
+        while len(remaining) > next_cap_last:
+            page_chunks.append(("next_nonlast", remaining[:next_cap_nonlast]))
+            remaining = remaining[next_cap_nonlast:]
+        page_chunks.append(("next_last", remaining))
+
+    total_pages = len(page_chunks)
 
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=letter)
     width, height = letter
 
-    left = 0.75 * inch
-    right = width - 0.75 * inch
-    top = height - 0.75 * inch
+    left = 18
+    right = width - 18
 
-    # logo (si existe)
-    if os.path.exists(LOGO_PATH_DEFAULT):
-        try:
-            c.drawImage(LOGO_PATH_DEFAULT, left, top - 0.85 * inch, width=1.6 * inch, height=0.75 * inch, mask="auto")
-        except Exception:
-            pass
+    def draw_logo(x: float, y: float, w: float = 78, h: float = 40) -> None:
+        if os.path.exists(LOGO_PATH_DEFAULT):
+            try:
+                c.drawImage(LOGO_PATH_DEFAULT, x, y, width=w, height=h, mask="auto")
+            except Exception:
+                pass
 
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(left + 1.8 * inch, top - 0.15 * inch, "Evolution Truck - Invoice")
-
-    c.setFont("Helvetica", 10)
-    inv_no = inv.invoice_number or f"INV-{inv.id}"
-    c.drawRightString(right, top - 0.10 * inch, f"Invoice: {inv_no}")
-    c.drawRightString(right, top - 0.28 * inch, f"Date: {inv.created_at.strftime('%Y-%m-%d %H:%M')}")
-    c.drawRightString(right, top - 0.46 * inch, f"Status: {inv.status}")
-    c.drawRightString(right, top - 0.64 * inch, f"Payment: {inv.payment_method or '-'}")
-
-    c.setStrokeColor(colors.black)
-    c.setLineWidth(1)
-    c.line(left, top - 0.95 * inch, right, top - 0.95 * inch)
-
-    y = top - 1.25 * inch
-
-    def section_title(title: str):
-        nonlocal y
-        c.setFont("Helvetica-Bold", 11)
-        c.drawString(left, y, title)
-        y -= 0.18 * inch
-        c.setLineWidth(0.5)
-        c.setStrokeColor(colors.grey)
-        c.line(left, y, right, y)
-        y -= 0.20 * inch
+    def draw_rect(x: float, y: float, w: float, h: float, lw: float = 0.8) -> None:
+        c.setLineWidth(lw)
         c.setStrokeColor(colors.black)
+        c.rect(x, y, w, h, stroke=1, fill=0)
 
-    def row(label: str, value: str):
-        nonlocal y
+    def draw_box_title(x: float, y: float, title: str, h: float) -> None:
         c.setFont("Helvetica-Bold", 9)
-        c.drawString(left, y, f"{label}:")
+        c.drawString(x + 6, y + h - 12, title)
+        c.setLineWidth(0.6)
+        c.line(x, y + h - 18, x + 1, y + h - 18)
+
+    def draw_lines_in_box(x: float, y: float, w: float, h: float, lines: List[str], font_size: int = 8) -> None:
+        text_y = y + h - 30
+        c.setFont("Helvetica", font_size)
+        for line in lines:
+            if text_y < y + 8:
+                break
+            c.drawString(x + 6, text_y, _clip(line, 55))
+            text_y -= 11
+
+    def draw_first_page_header(page_no: int, page_total: int) -> None:
+        header_y = height - 62
+        draw_rect(left, header_y, right - left, 144)
+        left_w = 250
+        right_w = 170
+        draw_rect(left, header_y, left_w, 144)
+        draw_rect(right - right_w, header_y, right_w, 144)
+
+        draw_logo(left + 8, header_y + 92, 64, 34)
+        c.setFont("Helvetica-Bold", 18)
+        c.drawCentredString((left + right) / 2, header_y + 102, company_name)
         c.setFont("Helvetica", 9)
-        c.drawString(left + 1.2 * inch, y, value or "-")
-        y -= 0.18 * inch
+        c.drawCentredString((left + right) / 2, header_y + 86, company_addr1)
+        c.drawCentredString((left + right) / 2, header_y + 72, company_addr2)
+        c.drawCentredString((left + right) / 2, header_y + 58, company_phone)
 
-    section_title("Bill To")
-    cust_name = inv.customer.name if inv.customer else "-"
-    row("Customer", cust_name)
-    if inv.customer:
-        row("Phone", inv.customer.phone or "-")
-        row("Email", inv.customer.email or "-")
-    row("Work Order", wo_number)
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(right - right_w + 8, header_y + 124, "INVOICE")
+        c.setFont("Helvetica", 8.5)
+        info_x = right - right_w + 8
+        info_y = header_y + 108
+        right_value_x = right - 8
+        info_rows = [
+            ("Invoice #", inv_no),
+            ("Date", inv_date),
+            ("Customer", cust_name),
+            ("Work Order", wo_number),
+            ("Unit", str(unit_value or "-")),
+            ("VIN", vin_last8),
+            ("Status", status_value),
+        ]
+        for label, value in info_rows:
+            c.drawString(info_x, info_y, f"{label}:")
+            c.drawRightString(right_value_x, info_y, _clip(value, 26))
+            info_y -= 14
 
-    y -= 0.10 * inch
+        box_y = 616
+        box_h = 72
+        gap = 12
+        box_w = (right - left - gap) / 2
+        bill_x = left
+        ship_x = left + box_w + gap
+        draw_rect(bill_x, box_y, box_w, box_h)
+        draw_rect(ship_x, box_y, box_w, box_h)
+        draw_box_title(bill_x, box_y, "BILL TO", box_h)
+        draw_box_title(ship_x, box_y, "SHIP TO / UNIT", box_h)
 
-    section_title("Items")
-    c.setFont("Helvetica-Bold", 8)
-    c.drawString(left, y, "Type")
-    c.drawString(left + 0.8 * inch, y, "Description")
-    c.drawRightString(right - 1.4 * inch, y, "Qty")
-    c.drawRightString(right - 0.7 * inch, y, "Unit")
-    c.drawRightString(right, y, "Total")
-    y -= 0.14 * inch
-    c.setLineWidth(0.5)
-    c.setStrokeColor(colors.grey)
-    c.line(left, y, right, y)
-    y -= 0.14 * inch
-    c.setStrokeColor(colors.black)
+        bill_lines = [
+            cust_name,
+            cust_address_1,
+            cust_address_2,
+            cust_phone,
+            cust_email,
+        ]
+        ship_lines = [
+            f"Unit: {unit_value}",
+            f"VIN: {vin_last8}",
+            vehicle_line,
+            company_addr1,
+            company_addr2,
+        ]
+        draw_lines_in_box(bill_x, box_y, box_w, box_h, [ln for ln in bill_lines if ln])
+        draw_lines_in_box(ship_x, box_y, box_w, box_h, [ln for ln in ship_lines if ln])
 
-    c.setFont("Helvetica", 8)
-    for it in (inv.items or [])[:18]:
-        c.drawString(left, y, (it.item_type or "")[:10])
-        c.drawString(left + 0.8 * inch, y, (it.description or "")[:50])
-        c.drawRightString(right - 1.4 * inch, y, f"{float(it.qty):g}")
-        c.drawRightString(right - 0.7 * inch, y, f"{float(it.unit_price):,.2f}")
-        c.drawRightString(right, y, f"{float(it.line_total):,.2f}")
-        y -= 0.14 * inch
-        if y < 2.2 * inch:
-            break
+        c.setFont("Helvetica", 8)
+        c.drawRightString(right, 18, f"Page {page_no} of {page_total}")
 
-    # Totals
-    y = max(y - 0.10 * inch, 2.0 * inch)
-    section_title("Totals")
-    row("Subtotal", _safe_money(inv.subtotal))
-    row("Tax", _safe_money(inv.tax))
-    row("Fee", _safe_money(inv.processing_fee))
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(left, y, f"TOTAL: {_safe_money(inv.total)}")
-    y -= 0.22 * inch
+    def draw_continuation_header(page_no: int, page_total: int) -> None:
+        header_y = height - 46
+        draw_rect(left, header_y, right - left, 34)
+        c.setFont("Helvetica-Bold", 13)
+        c.drawString(left + 10, header_y + 21, company_name)
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(left + 10, header_y + 8, f"INVOICE {inv_no} - CONTINUATION")
+        c.setFont("Helvetica", 8.5)
+        c.drawRightString(right - 8, header_y + 20, f"Customer: {_clip(cust_name, 28)}")
+        c.drawRightString(right - 8, header_y + 8, f"VIN: {vin_last8}   Unit: {unit_value}")
+        c.setFont("Helvetica", 8)
+        c.drawRightString(right, 18, f"Page {page_no} of {page_total}")
 
-    c.setFont("Helvetica-Oblique", 8)
-    c.drawRightString(right, 0.7 * inch, "Generated by Evolution Truck System")
+    def draw_items_table(chunk: List[Optional[InvoiceItem]], start_y: float, bottom_y: float) -> None:
+        table_x = left
+        table_w = right - left
+        col_part = 82
+        col_desc = 280
+        col_qty = 55
+        col_unit = 90
+        col_ext = table_w - col_part - col_desc - col_qty - col_unit
 
-    c.showPage()
+        x_part = table_x
+        x_desc = x_part + col_part
+        x_qty = x_desc + col_desc
+        x_unit = x_qty + col_qty
+        x_ext = x_unit + col_unit
+
+        c.setLineWidth(0.8)
+        c.rect(table_x, bottom_y, table_w, start_y - bottom_y, stroke=1, fill=0)
+
+        c.setFont("Helvetica-Bold", 8.5)
+        c.drawString(x_part + 6, start_y - 14, "Part #")
+        c.drawString(x_desc + 6, start_y - 14, "Description / Ref Number")
+        c.drawCentredString(x_qty + col_qty / 2, start_y - 14, "Qty")
+        c.drawRightString(x_unit + col_unit - 6, start_y - 14, "Unit Price")
+        c.drawRightString(x_ext + col_ext - 6, start_y - 14, "Ext Price")
+        c.line(table_x, start_y - 20, table_x + table_w, start_y - 20)
+
+        for x in (x_desc, x_qty, x_unit, x_ext):
+            c.line(x, bottom_y, x, start_y)
+
+        y = start_y - 20
+        c.setFont("Helvetica", 8.5)
+        for it in chunk:
+            next_y = y - row_h
+            c.line(table_x, next_y, table_x + table_w, next_y)
+            c.drawString(x_part + 6, y - 12, _clip(item_part_no(it), 14))
+            c.drawString(x_desc + 6, y - 12, _clip(item_desc(it), 56))
+            qty = getattr(it, "qty", 0) if it else 0
+            unit_price = getattr(it, "unit_price", Decimal("0.00")) if it else Decimal("0.00")
+            line_total = getattr(it, "line_total", Decimal("0.00")) if it else Decimal("0.00")
+            c.drawCentredString(x_qty + col_qty / 2, y - 12, f"{float(qty):g}")
+            c.drawRightString(x_unit + col_unit - 6, y - 12, _safe_money(unit_price))
+            c.drawRightString(x_ext + col_ext - 6, y - 12, _safe_money(line_total))
+            y = next_y
+
+    def draw_last_page_footer(is_first_page: bool) -> None:
+        notes_x = left
+        notes_y = 38
+        notes_w = 360
+        notes_h = 92
+        totals_gap = 12
+        totals_w = (right - left) - notes_w - totals_gap
+        totals_x = notes_x + notes_w + totals_gap
+        totals_y = notes_y
+        totals_h = notes_h
+
+        draw_rect(notes_x, notes_y, notes_w, notes_h)
+        draw_rect(totals_x, totals_y, totals_w, totals_h)
+
+        c.setFont("Helvetica", 7.5)
+        notes_text = [
+            f"Payment Method: {payment_method}",
+            f"Work Order Reference: {wo_number}",
+            _clip(getattr(inv, 'notes', None) or "Parts sales invoice. All claims must be reported immediately upon delivery.", 110),
+            "Electrical parts, special-order parts, and used parts are not returnable.",
+            "Warranty applies only to manufacturer defects and does not include labor.",
+        ]
+        ty = notes_y + notes_h - 14
+        for line in notes_text:
+            c.drawString(notes_x + 8, ty, _clip(line, 88))
+            ty -= 12
+
+        c.setFont("Helvetica", 10)
+        label_x = totals_x + 10
+        value_x = totals_x + totals_w - 10
+        line_y = totals_y + totals_h - 18
+        c.drawString(label_x, line_y, "Subtotal:")
+        c.drawRightString(value_x, line_y, _safe_money(inv.subtotal))
+        line_y -= 16
+        c.drawString(label_x, line_y, "Tax:")
+        c.drawRightString(value_x, line_y, _safe_money(inv.tax))
+        line_y -= 16
+        c.drawString(label_x, line_y, "Processing Fee:")
+        c.drawRightString(value_x, line_y, _safe_money(inv.processing_fee))
+        line_y -= 20
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(label_x, line_y, "Total:")
+        c.drawRightString(value_x, line_y, _safe_money(inv.total))
+
+        c.setFont("Helvetica-Oblique", 7.5)
+        c.drawString(left, 22, f"{company_name}  |  {company_phone}")
+
+    for idx, (page_kind, chunk) in enumerate(page_chunks, start=1):
+        is_first_page = page_kind.startswith("first")
+        is_last_page = page_kind.endswith("last")
+
+        if is_first_page:
+            draw_first_page_header(idx, total_pages)
+            table_top = first_table_top
+            table_bottom = first_bottom_last if is_last_page else first_bottom_nonlast
+        else:
+            draw_continuation_header(idx, total_pages)
+            table_top = next_table_top
+            table_bottom = next_bottom_last if is_last_page else next_bottom_nonlast
+
+        draw_items_table(chunk, table_top, table_bottom)
+
+        if is_last_page:
+            draw_last_page_footer(is_first_page=is_first_page)
+
+        c.showPage()
+
     c.save()
-
     buf.seek(0)
     filename = f"{inv.invoice_number or f'INV-{inv.id}'}.pdf"
 

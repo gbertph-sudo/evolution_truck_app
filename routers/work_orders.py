@@ -728,7 +728,6 @@ def create_invoice_from_work_order(
 # -------------------------------
 # PDF (se mantiene tu PDF)
 # -------------------------------
-
 @router.get("/work-orders/{work_order_id}/pdf")
 def work_order_pdf(
     work_order_id: int,
@@ -756,7 +755,17 @@ def work_order_pdf(
     left = 16
     right = width - 16
     top = height - 16
-    bottom = 18
+
+    HEADER_H_FIRST = 168
+    HEADER_H_CONT = 34
+    HEADER_GAP = 10
+    CONT_TABLE_TOP_GAP = 42
+    FOOTER_TOP_Y = 132
+    FOOTER_SAFE_TOP_Y = 146
+    NONLAST_BOTTOM_Y_FIRST = 30
+    NONLAST_BOTTOM_Y_CONT = 24
+    ROW_H = 17
+    TABLE_HEADER_H = 18
 
     def money(v):
         return f"${float(_q2(v or Decimal('0.00'))):,.2f}"
@@ -790,234 +799,316 @@ def work_order_pdf(
             yy -= leading
         return yy
 
-    # ========= TOP AREA =========
-    y = top
-    top_h = 168
+    def draw_top_area():
+        y = top
+        top_h = HEADER_H_FIRST
 
-    left_w = 250
-    center_w = 250
-    right_w = (right - left) - left_w - center_w
+        left_w = 250
+        center_w = 250
+        right_w = (right - left) - left_w - center_w
 
-    # Left info block
-    box(left, y, left_w, top_h)
-    txt(left + 6, y - 14, "PLEASE READ CAREFULLY. CHECK ONE OF THE STATEMENTS BELOW, AND SIGN:", "Helvetica-Bold", 7)
-    legal_lines = [
-        "I UNDERSTAND THAT, UNDER STATE LAW, AN ESTIMATE TO A WRITTEN",
-        "LIMITED TO A WRITTEN ESTIMATE.",
-        "MY FINAL BILL EXCEEDS $100:",
-        "[] I DO NOT REQUEST A WRITTEN STATEMENT AS",
-        "LONG AS THE REPAIR COSTS DO NOT EXCEED THIS LIMIT.",
-        "[] I REQUEST AN ORAL APPROVAL.",
-        "[] I REQUEST A WRITTEN ESTIMATE.",
-    ]
-    yy = y - 28
-    for line in legal_lines:
-        txt(left + 6, yy, line, "Helvetica", 6.8)
-        yy -= 10
+        # Left info block
+        box(left, y, left_w, top_h)
+        txt(left + 6, y - 14, "PLEASE READ CAREFULLY. CHECK ONE OF THE STATEMENTS BELOW, AND SIGN:", "Helvetica-Bold", 7)
+        legal_lines = [
+            "I UNDERSTAND THAT, UNDER STATE LAW, AN ESTIMATE TO A WRITTEN",
+            "LIMITED TO A WRITTEN ESTIMATE.",
+            "MY FINAL BILL EXCEEDS $100:",
+            "[] I DO NOT REQUEST A WRITTEN STATEMENT AS",
+            "LONG AS THE REPAIR COSTS DO NOT EXCEED THIS LIMIT.",
+            "[] I REQUEST AN ORAL APPROVAL.",
+            "[] I REQUEST A WRITTEN ESTIMATE.",
+        ]
+        yy = y - 28
+        for line in legal_lines:
+            txt(left + 6, yy, line, "Helvetica", 6.8)
+            yy -= 10
 
-    label_x = left + 8
-    value_x = left + 92
-    line_y = y - 104
-    row_gap = 13
-    data_pairs = [
-        ("SIGNED:", ""),
-        ("Phone:", wo.customer.phone if wo.customer and wo.customer.phone else ""),
-        ("Fax:", ""),
-        ("InvDate:", wo.created_at.strftime("%m/%d/%Y") if wo.created_at else ""),
-        ("Name:", wo.customer.name if wo.customer else ""),
-        ("Address:", company_addr_1),
-    ]
-    for k, v in data_pairs:
-        txt(label_x, line_y, k, "Helvetica-Bold", 7)
-        txt(value_x, line_y, v, "Helvetica", 7)
-        line_y -= row_gap
-    txt(value_x, line_y, company_addr_2, "Helvetica", 7)
+        label_x = left + 8
+        value_x = left + 92
+        line_y = y - 104
+        row_gap = 13
+        data_pairs = [
+            ("SIGNED:", ""),
+            ("Phone:", wo.customer.phone if wo.customer and wo.customer.phone else ""),
+            ("Fax:", ""),
+            ("InvDate:", wo.created_at.strftime("%m/%d/%Y") if wo.created_at else ""),
+            ("Name:", wo.customer.name if wo.customer else ""),
+            ("Address:", company_addr_1),
+        ]
+        for k, v in data_pairs:
+            txt(label_x, line_y, k, "Helvetica-Bold", 7)
+            txt(value_x, line_y, v, "Helvetica", 7)
+            line_y -= row_gap
+        txt(value_x, line_y, company_addr_2, "Helvetica", 7)
 
-    # Center company/vehicle block
-    cx = left + left_w
-    box(cx, y, center_w, top_h)
-    logo_path_final = (logo_path or LOGO_PATH_DEFAULT).strip()
-    if logo_path_final and os.path.exists(logo_path_final):
-        try:
-            c.drawImage(logo_path_final, cx + 72, y - 74, width=96, height=56, mask="auto")
-        except Exception:
-            pass
-    txt(cx + center_w/2 - 70, y - 86, company_name, "Helvetica-Bold", 13)
-    txt(cx + center_w/2 - 78, y - 100, company_addr_1, "Helvetica", 7.5)
-    txt(cx + center_w/2 - 96, y - 112, company_addr_2, "Helvetica", 7.5)
-    txt(cx + center_w/2 - 62, y - 124, company_phone, "Helvetica", 7.5)
+        # Center company/vehicle block
+        cx = left + left_w
+        box(cx, y, center_w, top_h)
+        logo_path_final = (logo_path or LOGO_PATH_DEFAULT).strip()
+        if logo_path_final and os.path.exists(logo_path_final):
+            try:
+                c.drawImage(logo_path_final, cx + 72, y - 74, width=96, height=56, mask="auto")
+            except Exception:
+                pass
+        txt(cx + center_w/2 - 70, y - 86, company_name, "Helvetica-Bold", 13)
+        txt(cx + center_w/2 - 78, y - 100, company_addr_1, "Helvetica", 7.5)
+        txt(cx + center_w/2 - 96, y - 112, company_addr_2, "Helvetica", 7.5)
+        txt(cx + center_w/2 - 62, y - 124, company_phone, "Helvetica", 7.5)
 
-    vehicle_txt = f"{(wo.vehicle.make or '') if wo.vehicle else ''} {(wo.vehicle.model or '') if wo.vehicle else ''}".strip() or "-"
-    details = [
-        ("Year:", str(wo.vehicle.year) if wo.vehicle and wo.vehicle.year else "-"),
-        ("Make:", wo.vehicle.make if wo.vehicle and wo.vehicle.make else "-"),
-        ("Model:", wo.vehicle.model if wo.vehicle and wo.vehicle.model else "-"),
-        ("VIN#:", wo.vehicle.vin if wo.vehicle and wo.vehicle.vin else "-"),
-        ("Unit:", wo.vehicle.unit_number if wo.vehicle and wo.vehicle.unit_number else "-"),
-        ("Miles out:", ""),
-    ]
-    lx1 = cx + 8
-    lx2 = cx + 132
-    dy = y - 142
-    for idx, (k,v) in enumerate(details[:3]):
-        txt(lx1, dy - idx*11, k, "Helvetica-Bold", 7)
-        txt(lx1+36, dy - idx*11, v, "Helvetica", 7)
-    for idx, (k,v) in enumerate(details[3:]):
-        txt(lx2, dy - idx*11, k, "Helvetica-Bold", 7)
-        txt(lx2+42, dy - idx*11, v, "Helvetica", 7)
+        details = [
+            ("Year:", str(wo.vehicle.year) if wo.vehicle and wo.vehicle.year else "-"),
+            ("Make:", wo.vehicle.make if wo.vehicle and wo.vehicle.make else "-"),
+            ("Model:", wo.vehicle.model if wo.vehicle and wo.vehicle.model else "-"),
+            ("VIN#:", wo.vehicle.vin if wo.vehicle and wo.vehicle.vin else "-"),
+            ("Unit:", wo.vehicle.unit_number if wo.vehicle and wo.vehicle.unit_number else "-"),
+            ("Miles out:", ""),
+        ]
+        lx1 = cx + 8
+        lx2 = cx + 132
+        dy = y - 142
+        for idx, (k, v) in enumerate(details[:3]):
+            txt(lx1, dy - idx * 11, k, "Helvetica-Bold", 7)
+            txt(lx1 + 36, dy - idx * 11, v, "Helvetica", 7)
+        for idx, (k, v) in enumerate(details[3:]):
+            txt(lx2, dy - idx * 11, k, "Helvetica-Bold", 7)
+            txt(lx2 + 42, dy - idx * 11, v, "Helvetica", 7)
 
-    # Right estimate block
-    rx = cx + center_w
-    box(rx, y, right_w, top_h)
-    est_lines = [
-        ("ESTIMATE/DIAGNOSTIC", ""),
-        ("FEE:", ""),
-        ("OR/HOURLY on parts and labor", ""),
-        ("ESTIMATE", ""),
-        ("Proposed Complete Date:", ""),
-        ("Warranty:", "No"),
-        ("Customer Complaint/Problem:", (wo.description or "")[:28]),
-        ("Labor rate based on:", ""),
-        ("DOT rate:", ""),
-        ("HOURLY RATE $50.00", ""),
-        ("PER DAY MAY BE APPLIED", ""),
-        ("NOT CLEAR OF CHARGES", ""),
-    ]
-    yy = y - 14
-    for k, v in est_lines:
-        if v:
-            txt(rx + 8, yy, k, "Helvetica-Bold", 7)
-            txt(rx + 112, yy, v, "Helvetica", 7)
-        else:
-            txt(rx + 8, yy, k, "Helvetica", 7)
-        yy -= 11
+        # Right estimate block
+        rx = cx + center_w
+        box(rx, y, right_w, top_h)
+        est_lines = [
+            ("ESTIMATE/DIAGNOSTIC", ""),
+            ("FEE:", ""),
+            ("OR/HOURLY on parts and labor", ""),
+            ("ESTIMATE", ""),
+            ("Proposed Complete Date:", ""),
+            ("Warranty:", "No"),
+            ("Customer Complaint/Problem:", (wo.description or "")[:28]),
+            ("Labor rate based on:", ""),
+            ("DOT rate:", ""),
+            ("HOURLY RATE $50.00", ""),
+            ("PER DAY MAY BE APPLIED", ""),
+            ("NOT CLEAR OF CHARGES", ""),
+        ]
+        yy = y - 14
+        for k, v in est_lines:
+            if v:
+                txt(rx + 8, yy, k, "Helvetica-Bold", 7)
+                txt(rx + 112, yy, v, "Helvetica", 7)
+            else:
+                txt(rx + 8, yy, k, "Helvetica", 7)
+            yy -= 11
 
-    # ========= DETAIL TABLES =========
-    y = top - top_h - 10
+        return top - top_h - HEADER_GAP
 
-    bar_w = 18
-    detail_h = 150
+    def draw_continuation_header():
+        cont_y = top
+        box(left, cont_y, right - left, HEADER_H_CONT)
+        txt(left + 8, cont_y - 14, company_name, "Helvetica-Bold", 12)
+        txt(left + 8, cont_y - 27, f"WORK ORDER {wo.work_order_number or f'WO-{wo.id:06d}'} - CONTINUATION", "Helvetica-Bold", 9)
+        txt_right(right - 8, cont_y - 14, f"Invoice: {invoice.invoice_number if invoice else '-'}", "Helvetica", 8)
+        txt_right(right - 8, cont_y - 27, f"Customer: {wo.customer.name if wo.customer else '-'}", "Helvetica", 8)
+        return cont_y - CONT_TABLE_TOP_GAP
 
-    # Parts bar and table
-    box(left, y, bar_w, detail_h, fill=colors.lightgrey)
-    c.saveState()
-    c.setFont("Helvetica-Bold", 10)
-    c.translate(left + 13, y - detail_h + 8)
-    c.rotate(90)
-    c.drawString(0, 0, "P A R T S   D E T A I L")
-    c.restoreState()
+    def draw_detail_headers(y_top, content_bottom_y):
+        bar_w = 18
+        detail_h = max(60, y_top - content_bottom_y)
 
-    px = left + bar_w
-    pw = width - 260 - px
-    box(px, y, pw, detail_h)
-    header_h = 18
-    box(px, y, pw, header_h, fill=colors.whitesmoke)
-    txt(px + 6, y - 12, "Part / Misc", "Helvetica-Bold", 7.5)
-    txt(px + 110, y - 12, "Description / Ref Number", "Helvetica-Bold", 7.5)
-    txt_right(px + pw - 135, y - 12, "Quantity", "Helvetica-Bold", 7.5)
-    txt_right(px + pw - 78, y - 12, "Price", "Helvetica-Bold", 7.5)
-    txt_right(px + pw - 8, y - 12, "Ext Price", "Helvetica-Bold", 7.5)
+        # Parts
+        box(left, y_top, bar_w, detail_h, fill=colors.lightgrey)
+        c.saveState()
+        c.setFont("Helvetica-Bold", 10)
+        c.translate(left + 13, y_top - detail_h + 8)
+        c.rotate(90)
+        c.drawString(0, 0, "P A R T S   D E T A I L")
+        c.restoreState()
 
-    row_y = y - header_h
-    row_h = 17
+        px = left + bar_w
+        pw = width - 260 - px
+        box(px, y_top, pw, detail_h)
+        box(px, y_top, pw, TABLE_HEADER_H, fill=colors.whitesmoke)
+        txt(px + 6, y_top - 12, "Part / Misc", "Helvetica-Bold", 7.5)
+        txt(px + 110, y_top - 12, "Description / Ref Number", "Helvetica-Bold", 7.5)
+        txt_right(px + pw - 135, y_top - 12, "Quantity", "Helvetica-Bold", 7.5)
+        txt_right(px + pw - 78, y_top - 12, "Price", "Helvetica-Bold", 7.5)
+        txt_right(px + pw - 8, y_top - 12, "Ext Price", "Helvetica-Bold", 7.5)
+
+        # Labor
+        lx = px + pw + 8
+        lw = right - lx
+        box(lx, y_top, bar_w, detail_h, fill=colors.lightgrey)
+        c.saveState()
+        c.setFont("Helvetica-Bold", 10)
+        c.translate(lx + 13, y_top - detail_h + 8)
+        c.rotate(90)
+        c.drawString(0, 0, "L A B O R   D E T A I L")
+        c.restoreState()
+
+        tx = lx + bar_w
+        tw = right - tx
+        box(tx, y_top, tw, detail_h)
+        box(tx, y_top, tw, TABLE_HEADER_H, fill=colors.whitesmoke)
+        txt(tx + 8, y_top - 12, "Description", "Helvetica-Bold", 7.5)
+        txt_right(tx + tw - 122, y_top - 12, "Hours", "Helvetica-Bold", 7.5)
+        txt_right(tx + tw - 64, y_top - 12, "Rate", "Helvetica-Bold", 7.5)
+        txt_right(tx + tw - 8, y_top - 12, "Price", "Helvetica-Bold", 7.5)
+
+        usable_h = max(0, detail_h - TABLE_HEADER_H)
+        max_rows = max(1, int(usable_h // ROW_H))
+
+        return {
+            "parts_x": px,
+            "parts_w": pw,
+            "labor_x": tx,
+            "labor_w": tw,
+            "row_h": ROW_H,
+            "table_top_y": y_top - TABLE_HEADER_H,
+            "max_rows": max_rows,
+        }
+
+    def draw_bottom_area():
+        y = FOOTER_TOP_Y
+
+        left_note_w = 248
+        left_note_h = 88
+        box(left, y, left_note_w, left_note_h)
+        wrapped(
+            left + 6, y - 12,
+            "Estimate good for 30 days. Not responsible for damage caused by theft, fire or acts of God. "
+            "This charge represents cost and profits to motor vehicles of materials and supplies sold by us and/or furnished by outside suppliers. "
+            "Waste disposal sold to customer. Under no circumstances are labor charges returnable.",
+            62, leading=8, font="Helvetica", size=6.7, max_lines=9
+        )
+        txt(left + 6, y - 78, "X _____________________________    Date: ____________", "Helvetica", 7)
+
+        mid_note_x = left + left_note_w + 8
+        mid_note_w = 320
+        mid_note_h = 88
+        box(mid_note_x, y, mid_note_w, mid_note_h)
+        wrapped(
+            mid_note_x + 6, y - 12,
+            "ORIGINAL PARTS HAVE TWELVE (12) MONTHS OF WARRANTY SUBJECT TO INSPECTION FROM MANUFACTURER BEFORE "
+            "REPLACEMENT PART IS CREDITED. AFTERMARKET AND REBUILD PARTS HAVE SIX MONTHS (6) OF WARRANTY. "
+            "UNDER NO REASON, TURBOS AND CLUTCHES DO NOT HAVE WARRANTY. LABOR CLAIM WILL NOT PROCESSED.",
+            82, leading=8, font="Helvetica", size=6.5, max_lines=9
+        )
+
+        totals_x = mid_note_x + mid_note_w + 8
+        totals_w = right - totals_x
+        totals_h = 88
+        box(totals_x, y, totals_w, totals_h)
+        line_y = y - 16
+        for label, value in [
+            ("Charges:", money(Decimal("0.00"))),
+            ("Sublet:", money(Decimal("0.00"))),
+            ("Supplies:", money(Decimal("0.00"))),
+            ("Sub Total:", money(subtotal)),
+            ("Tax:", money(tax)),
+            ("Total:", money(total)),
+        ]:
+            font = "Helvetica-Bold" if label == "Total:" else "Helvetica"
+            size = 9 if label == "Total:" else 8.5
+            txt(totals_x + 8, line_y, label, font, size)
+            txt_right(totals_x + totals_w - 8, line_y, value, font, size)
+            line_y -= 12
+
+    def rows_for(y_top, content_bottom_y):
+        detail_h = max(60, y_top - content_bottom_y)
+        usable_h = max(0, detail_h - TABLE_HEADER_H)
+        return max(1, int(usable_h // ROW_H))
+
+    first_table_top_y = top - HEADER_H_FIRST - HEADER_GAP
+    cont_table_top_y = top - CONT_TABLE_TOP_GAP
+
+    first_last_cap = rows_for(first_table_top_y, FOOTER_SAFE_TOP_Y)
+    first_nonlast_cap = rows_for(first_table_top_y, NONLAST_BOTTOM_Y_FIRST)
+    cont_last_cap = rows_for(cont_table_top_y, FOOTER_SAFE_TOP_Y)
+    cont_nonlast_cap = rows_for(cont_table_top_y, NONLAST_BOTTOM_Y_CONT)
+
+    def page_caps(page_count: int):
+        if page_count <= 1:
+            return [first_last_cap]
+        return [first_nonlast_cap] + ([cont_nonlast_cap] * (page_count - 2)) + [cont_last_cap]
+
     parts = list(wo.items or [])
-    if not parts:
-        box(px, row_y, pw, row_h)
-        txt(px + 8, row_y - 11, "No parts added", "Helvetica", 8)
-        row_y -= row_h
-    else:
-        for it in parts[:5]:
-            box(px, row_y, pw, row_h)
-            txt(px + 6, row_y - 11, str(it.inventory_item_id or ""), "Helvetica", 7)
-            txt(px + 110, row_y - 11, (it.description_snapshot or "-")[:42], "Helvetica", 7)
-            txt_right(px + pw - 135, row_y - 11, f"{float(it.qty or 0):g}", "Helvetica", 7)
-            txt_right(px + pw - 78, row_y - 11, money(it.unit_price_snapshot), "Helvetica", 7)
-            txt_right(px + pw - 8, row_y - 11, money(it.line_total), "Helvetica", 7)
-            row_y -= row_h
-
-    # Labor bar and table
-    lx = px + pw + 8
-    lw = right - lx
-    box(lx, y, bar_w, detail_h, fill=colors.lightgrey)
-    c.saveState()
-    c.setFont("Helvetica-Bold", 10)
-    c.translate(lx + 13, y - detail_h + 8)
-    c.rotate(90)
-    c.drawString(0, 0, "L A B O R   D E T A I L")
-    c.restoreState()
-
-    tx = lx + bar_w
-    tw = right - tx
-    box(tx, y, tw, detail_h)
-    box(tx, y, tw, header_h, fill=colors.whitesmoke)
-    txt(tx + 8, y - 12, "Description", "Helvetica-Bold", 7.5)
-    txt_right(tx + tw - 78, y - 12, "Price", "Helvetica-Bold", 7.5)
-    row_y = y - header_h
     labors = list(wo.labors or [])
-    if not labors:
-        box(tx, row_y, tw, row_h)
-        txt(tx + 8, row_y - 11, "No labor added", "Helvetica", 8)
-        row_y -= row_h
-    else:
-        for lb in labors[:5]:
-            box(tx, row_y, tw, row_h)
-            txt(tx + 8, row_y - 11, (lb.description or "-")[:28], "Helvetica", 7)
-            txt_right(tx + tw - 8, row_y - 11, money(lb.line_total), "Helvetica", 7)
-            row_y -= row_h
 
-    # ========= BOTTOM AREA =========
-    y = 132
+    total_pages = 1
+    while True:
+        caps = page_caps(total_pages)
+        if len(parts) <= sum(caps) and len(labors) <= sum(caps):
+            break
+        total_pages += 1
 
-    # Left warranty note
-    left_note_w = 248
-    left_note_h = 88
-    box(left, y, left_note_w, left_note_h)
-    wrapped(
-        left + 6, y - 12,
-        "Estimate good for 30 days. Not responsible for damage caused by theft, fire or acts of God. "
-        "This charge represents cost and profits to motor vehicles of materials and supplies sold by us and/or furnished by outside suppliers. "
-        "Waste disposal sold to customer. Under no circumstances are labor charges returnable.",
-        62, leading=8, font="Helvetica", size=6.7, max_lines=9
-    )
-    txt(left + 6, y - 78, "X _____________________________    Date: ____________", "Helvetica", 7)
+    def distribute(items, caps):
+        out = []
+        idx = 0
+        total_items = len(items)
+        for cap in caps:
+            next_idx = min(total_items, idx + cap)
+            out.append(items[idx:next_idx])
+            idx = next_idx
+        return out
 
-    # Middle policy note
-    mid_note_x = left + left_note_w + 8
-    mid_note_w = 320
-    mid_note_h = 88
-    box(mid_note_x, y, mid_note_w, mid_note_h)
-    wrapped(
-        mid_note_x + 6, y - 12,
-        "ORIGINAL PARTS HAVE TWELVE (12) MONTHS OF WARRANTY SUBJECT TO INSPECTION FROM MANUFACTURER BEFORE "
-        "REPLACEMENT PART IS CREDITED. AFTERMARKET AND REBUILD PARTS HAVE SIX MONTHS (6) OF WARRANTY. "
-        "UNDER NO REASON, TURBOS AND CLUTCHES DO NOT HAVE WARRANTY. LABOR CLAIM WILL NOT PROCESSED.",
-        82, leading=8, font="Helvetica", size=6.5, max_lines=9
-    )
+    parts_pages = distribute(parts, page_caps(total_pages))
+    labors_pages = distribute(labors, page_caps(total_pages))
 
-    # Totals box
-    totals_x = mid_note_x + mid_note_w + 8
-    totals_w = right - totals_x
-    totals_h = 88
-    box(totals_x, y, totals_w, totals_h)
-    line_y = y - 16
-    for label, value in [
-        ("Charges:", money(Decimal("0.00"))),
-        ("Sublet:", money(Decimal("0.00"))),
-        ("Supplies:", money(Decimal("0.00"))),
-        ("Sub Total:", money(subtotal)),
-        ("Tax:", money(tax)),
-        ("Total:", money(total)),
-    ]:
-        font = "Helvetica-Bold" if label == "Total:" else "Helvetica"
-        size = 9 if label == "Total:" else 8.5
-        txt(totals_x + 8, line_y, label, font, size)
-        txt_right(totals_x + totals_w - 8, line_y, value, font, size)
-        line_y -= 12
+    for page_idx in range(total_pages):
+        if page_idx > 0:
+            c.showPage()
 
-    c.setFont("Helvetica", 7)
-    c.drawRightString(right, 10, "Page 1 of 1")
+        is_first = page_idx == 0
+        is_last = page_idx == total_pages - 1
 
-    c.showPage()
+        if is_first:
+            table_y_top = draw_top_area()
+            content_bottom_y = FOOTER_SAFE_TOP_Y if is_last else NONLAST_BOTTOM_Y_FIRST
+        else:
+            table_y_top = draw_continuation_header()
+            content_bottom_y = FOOTER_SAFE_TOP_Y if is_last else NONLAST_BOTTOM_Y_CONT
+
+        layout = draw_detail_headers(table_y_top, content_bottom_y)
+
+        page_parts = parts_pages[page_idx] if page_idx < len(parts_pages) else []
+        page_labors = labors_pages[page_idx] if page_idx < len(labors_pages) else []
+
+        row_y_parts = layout["table_top_y"]
+        row_y_labors = layout["table_top_y"]
+
+        if not page_parts:
+            msg = "No parts added" if len(parts) == 0 and is_first else "No additional parts"
+            box(layout["parts_x"], row_y_parts, layout["parts_w"], layout["row_h"])
+            txt(layout["parts_x"] + 8, row_y_parts - 11, msg, "Helvetica", 8)
+        else:
+            for it in page_parts:
+                box(layout["parts_x"], row_y_parts, layout["parts_w"], layout["row_h"])
+                txt(layout["parts_x"] + 6, row_y_parts - 11, str(it.inventory_item_id or ""), "Helvetica", 7)
+                txt(layout["parts_x"] + 110, row_y_parts - 11, (it.description_snapshot or "-")[:42], "Helvetica", 7)
+                txt_right(layout["parts_x"] + layout["parts_w"] - 135, row_y_parts - 11, f"{float(it.qty or 0):g}", "Helvetica", 7)
+                txt_right(layout["parts_x"] + layout["parts_w"] - 78, row_y_parts - 11, money(it.unit_price_snapshot), "Helvetica", 7)
+                txt_right(layout["parts_x"] + layout["parts_w"] - 8, row_y_parts - 11, money(it.line_total), "Helvetica", 7)
+                row_y_parts -= layout["row_h"]
+
+        if not page_labors:
+            msg = "No labor added" if len(labors) == 0 and is_first else "No additional labor"
+            box(layout["labor_x"], row_y_labors, layout["labor_w"], layout["row_h"])
+            txt(layout["labor_x"] + 8, row_y_labors - 11, msg, "Helvetica", 8)
+        else:
+            for lb in page_labors:
+                box(layout["labor_x"], row_y_labors, layout["labor_w"], layout["row_h"])
+                txt(layout["labor_x"] + 8, row_y_labors - 11, (lb.description or "-")[:28], "Helvetica", 7)
+                txt_right(layout["labor_x"] + layout["labor_w"] - 122, row_y_labors - 11, f"{float(lb.hours or 0):g}", "Helvetica", 7)
+                txt_right(layout["labor_x"] + layout["labor_w"] - 64, row_y_labors - 11, money(lb.rate), "Helvetica", 7)
+                txt_right(layout["labor_x"] + layout["labor_w"] - 8, row_y_labors - 11, money(lb.line_total), "Helvetica", 7)
+                row_y_labors -= layout["row_h"]
+
+        if is_last:
+            draw_bottom_area()
+
+        c.setFont("Helvetica", 7)
+        c.drawRightString(right, 10, f"Page {page_idx + 1} of {total_pages}")
+
     c.save()
     buf.seek(0)
     filename = f"{wo.work_order_number or f'WO-{wo.id}'}.pdf"
@@ -1026,3 +1117,5 @@ def work_order_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
+
+
