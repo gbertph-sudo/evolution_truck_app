@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="stylesheet" href="/static/app-shell.css?v=2">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Parts Store (POS) - Evolution Truck</title>
+  <style>
+    :root{--et-red:#e10600;--et-red-dark:#bd0500;--et-line:#e6e8ec;--et-soft:#f7f8fa;--et-shadow:0 16px 40px rgba(15,23,42,.08);--et-text:#101828;--et-muted:#667085;}
+    *{box-sizing:border-box}
+    .card{background:#fff;border:1px solid var(--et-line);border-radius:20px;box-shadow:var(--et-shadow)}
+    .pos-layout{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(360px,.95fr);gap:18px;align-items:start}
+    .toolbar{padding:18px}
+    .toolbar-grid{display:grid;grid-template-columns:1.1fr auto auto;gap:12px;align-items:center}
+    .search-input,.text-input,.select-input,textarea{width:100%;border:1px solid #d0d5dd;border-radius:14px;padding:12px 14px;font-weight:700;background:#fff;color:var(--et-text)}
+    .search-input:focus,.text-input:focus,.select-input:focus,textarea:focus{outline:none;border-color:rgba(225,6,0,.45);box-shadow:0 0 0 4px rgba(225,6,0,.12)}
+    .grid-products{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px;padding:0 18px 18px}
+    .product{overflow:hidden;display:flex;flex-direction:column}
+    .product-media{height:180px;background:#f7f8fa;display:flex;align-items:center;justify-content:center;border-bottom:1px solid var(--et-line)}
+    .product-media img{max-width:100%;max-height:160px;object-fit:contain;display:block}
+    .product-body{padding:14px;display:grid;gap:8px}
+    .pill{display:inline-flex;align-items:center;gap:8px;border-radius:999px;background:#f2f4f7;padding:6px 10px;font-size:12px;font-weight:900;color:#344054}
+    .product-name{font-weight:900;font-size:16px;line-height:1.2;color:var(--et-text);min-height:38px}
+    .product-meta{font-size:12px;color:var(--et-muted);display:grid;gap:4px}
+    .price-row{display:flex;justify-content:space-between;align-items:center;padding-top:6px}
+    .price{font-size:22px;font-weight:950;color:var(--et-red)}
+    .stock.ok{color:#067647;font-weight:900}.stock.low{color:#b54708;font-weight:900}.stock.out{color:#b42318;font-weight:900}
+    .btn{border:none;border-radius:14px;padding:12px 14px;font-weight:900;cursor:pointer;transition:.18s}
+    .btn-primary{background:var(--et-red);color:#fff}.btn-primary:hover{background:var(--et-red-dark)}
+    .btn-secondary{background:#eff2f6;color:#344054}.btn-secondary:hover{background:#e4e7ec}
+    .btn-ghost{background:#fff;border:1px solid #d0d5dd;color:#344054}
+    .btn-sm{padding:8px 10px;border-radius:12px;font-size:13px}
+    .side-stack{display:grid;gap:16px}
+    .section{padding:16px}
+    .section h3{margin:0 0 10px 0;font-size:16px}
+    .mode-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+    .mode-tab{padding:10px;border-radius:12px;border:1px solid #d0d5dd;background:#fff;font-weight:900;cursor:pointer}
+    .mode-tab.active{background:#fff5f5;border-color:rgba(225,6,0,.25);color:var(--et-red)}
+    .customer-result{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--et-line);border-radius:12px;margin-top:8px;background:#fafafa;cursor:pointer}
+    .customer-result.active{border-color:rgba(225,6,0,.35);box-shadow:0 0 0 4px rgba(225,6,0,.08)}
+    .cart-list{display:grid;gap:10px}
+    .cart-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:12px;border:1px solid var(--et-line);border-radius:14px;background:#fff}
+    .cart-name{font-weight:900;color:var(--et-text)}
+    .cart-code{font-size:12px;color:var(--et-muted)}
+    .cart-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+    .qty-badge{min-width:34px;text-align:center;font-weight:900}.price-editor{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;margin-top:8px}.price-input{width:120px;border:1px solid #d0d5dd;border-radius:10px;padding:8px 10px;font-weight:900}.price-input:focus{outline:none;border-color:rgba(225,6,0,.45);box-shadow:0 0 0 4px rgba(225,6,0,.12)}.price-note{font-size:11px;color:var(--et-muted)}.line-total{font-size:13px;font-weight:900;color:var(--et-text);margin-top:6px}
+    .totals{display:grid;gap:8px;margin-top:12px;padding-top:12px;border-top:1px dashed #d0d5dd}
+    .total-row{display:flex;justify-content:space-between;gap:12px;font-size:14px;font-weight:800;color:#344054}
+    .total-row.grand{font-size:22px;font-weight:950;color:var(--et-text)}
+    .hint{font-size:12px;color:var(--et-muted)}
+    .no-image-box{display:flex;align-items:center;justify-content:center;width:100%;height:100%;padding:18px;text-align:center;font-weight:900;color:#98a2b3;background:linear-gradient(180deg,#f8fafc,#eef2f6)}
+    .no-image-box.small{min-height:64px;border-radius:12px;border:1px dashed #d0d5dd;background:#f8fafc}
+    .product[data-view-id],.product [data-view-id]{cursor:pointer}
+    .modal-overlay{position:fixed;inset:0;background:rgba(16,24,40,.56);display:flex;align-items:center;justify-content:center;padding:20px;z-index:1200}
+    .modal-shell{width:min(980px,100%);max-height:90vh;overflow:auto;padding:18px}
+    .modal-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:14px}
+    .modal-sub{font-size:12px;color:var(--et-muted);font-weight:800;margin-top:4px}
+    .modal-layout{display:grid;grid-template-columns:minmax(280px,1fr) minmax(0,1.1fr);gap:18px}
+    .modal-main-image{height:320px;background:#f7f8fa;border:1px solid var(--et-line);border-radius:18px;display:flex;align-items:center;justify-content:center;padding:14px}
+    .modal-main-image img{max-width:100%;max-height:290px;object-fit:contain}
+    .modal-thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:10px;margin-top:12px}
+    .modal-thumb{border:1px solid #d0d5dd;background:#fff;border-radius:12px;padding:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;min-height:82px}
+    .modal-thumb.active{border-color:rgba(225,6,0,.35);box-shadow:0 0 0 4px rgba(225,6,0,.08)}
+    .modal-thumb img{max-width:100%;max-height:68px;object-fit:contain}
+    .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .detail-row{display:flex;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--et-line);border-radius:12px;background:#fafafa;font-size:13px}
+    .detail-row span{color:var(--et-muted);font-weight:800}
+    .detail-row strong{text-align:right;color:var(--et-text)}
+    .modal-desc{margin-top:12px;padding:12px 14px;border:1px solid var(--et-line);border-radius:14px;background:#fafafa;color:#344054;white-space:pre-wrap}
+
+    .msg{margin-top:12px;padding:12px 14px;border-radius:14px;font-weight:800;display:none}
+    .msg.ok{display:block;background:#ecfdf3;color:#067647;border:1px solid #abefc6}
+    .msg.err{display:block;background:#fef3f2;color:#b42318;border:1px solid #fecdca}
+    .inline-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.inline-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    .hidden{display:none!important}
+    .zelle-box{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;padding:12px 14px;border-radius:14px;font-weight:900}
+    
+.history-wrap{display:grid;gap:12px}
+.history-block{display:grid;gap:10px}
+.history-title{font-size:12px;font-weight:950;text-transform:uppercase;color:var(--et-muted);letter-spacing:.04em}
+.history-tags{display:flex;flex-wrap:wrap;gap:8px}
+.history-tag{border:1px solid #d0d5dd;background:#fff;border-radius:999px;padding:8px 10px;font-size:12px;font-weight:900;cursor:pointer;color:#344054}
+.history-tag small{font-size:11px;color:var(--et-muted)}
+.history-invoice{border:1px solid var(--et-line);border-radius:14px;padding:12px;background:#fafafa;display:grid;gap:10px}
+.history-invoice-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.history-invoice-no{font-weight:950;color:var(--et-text)}
+.history-lines{display:grid;gap:6px}
+.history-line{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:#344054}
+
+    @media (max-width:1100px){.pos-layout{grid-template-columns:1fr}.toolbar-grid{grid-template-columns:1fr}.inline-2,.inline-3{grid-template-columns:1fr}.modal-layout{grid-template-columns:1fr}.detail-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <section class="et-topbar">
+    <div class="et-topbar-inner">
+      <div class="et-topbar-row">
+        <div class="et-brand">
+          <div class="et-logo">ET</div>
+          <div>
+            <div class="et-brand-kicker">Counter Sales</div>
+            <h1 class="et-brand-title">Parts Store (POS)</h1>
+            <div class="et-brand-subtitle">Fast sales with customer history and Amazon-style browsing.</div>
+          </div>
+        </div>
+        <div class="et-userbox">
+          <div class="et-usergrid">
+            <div><div class="et-userlabel">User</div><div class="et-uservalue" id="shellUserName">Signed in</div></div>
+            <div><div class="et-userlabel">Role</div><div class="et-uservalue" id="shellRoleName">-</div></div>
+            <div><div class="et-userlabel">Today</div><div class="et-uservalue" id="shellToday">-</div></div>
+            <div><div class="et-userlabel">System</div><div class="et-uservalue">Online</div></div>
+          </div>
+          <div class="et-status">✅ POS ready.</div>
+        </div>
+      </div>
+      <div class="et-page-tools">
+        <div class="et-breadcrumb"><a href="/dashboard.html">Dashboard</a> / <span>Parts Store (POS)</span></div>
+        <div class="et-page-actions">
+          <button class="et-btn et-btn-secondary" type="button" onclick="window.location.href='/dashboard.html'">Dashboard</button>
+          <button class="et-btn et-btn-secondary" type="button" id="logoutBtn">Logout</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <main class="et-main">
+    <div class="et-page-head">
+      <div>
+        <h2 class="et-page-title">Parts Store (POS)</h2>
+        <div class="et-page-desc">Existing customer, quick customer, or walk-in. Cash tax toggle, 4% POS card fee, and fixed Zelle destination.</div>
+      </div>
+      <div><span class="et-badge et-badge-ready">Counter POS + Amazon look</span></div>
+    </div>
+
+    <div class="pos-layout">
+      <section class="card">
+        <div class="toolbar">
+          <div class="toolbar-grid">
+            <input id="searchInput" class="search-input" placeholder="Search part code, name, OEM, brand, engine..." />
+            <button id="refreshBtn" class="btn btn-secondary" type="button">Refresh</button>
+            <button id="clearSearchBtn" class="btn btn-ghost" type="button">Clear</button>
+          </div>
+        </div>
+        <div id="partsGrid" class="grid-products"></div>
+      </section>
+
+      <aside class="side-stack">
+        <section class="card section">
+          <h3>Customer</h3>
+          <div class="mode-tabs">
+            <button class="mode-tab active" data-mode="EXISTING" type="button">Existing</button>
+            <button class="mode-tab" data-mode="QUICK" type="button">Quick Customer</button>
+            <button class="mode-tab" data-mode="WALK_IN" type="button">Walk-in</button>
+          </div>
+
+          <div id="existingCustomerBox">
+            <input id="customerSearchInput" class="text-input" placeholder="Search name, phone, or email" />
+            <div id="customerResults"></div>
+          </div>
+
+          <div id="quickCustomerBox" class="hidden">
+            <div class="inline-2">
+              <div><input id="quickCustomerName" class="text-input" placeholder="Bill To Name" /></div>
+              <div><input id="quickCustomerPhone" class="text-input" placeholder="Phone" /></div>
+            </div>
+            <div style="margin-top:10px;"><input id="quickCustomerEmail" class="text-input" placeholder="Email (optional)" /></div>
+            <div class="hint" style="margin-top:8px;">This creates a basic customer record so you can find past purchases later.</div>
+          </div>
+
+          <div id="walkInBox" class="hidden">
+            <div class="zelle-box">Walk-in Customer selected. No customer record will be created.</div>
+          </div>
+
+          <div id="selectedCustomerBox" class="msg ok" style="display:block;margin-top:12px;">No customer selected yet.</div>
+        </section>
+
+        
+<section class="card section">
+  <h3>Customer History & Recommendations</h3>
+  <div id="customerHistoryEmpty" class="hint">Select an existing customer to see purchase history and repeat-sale suggestions.</div>
+  <div id="customerHistoryBody" class="history-wrap"></div>
+</section>
+
+<section class="card section">
+  <h3>Cart</h3>
+          <div id="cartList" class="cart-list"></div>
+          <div id="cartEmpty" class="hint">No parts added yet.</div>
+        </section>
+
+        <section class="card section">
+          <h3>Checkout</h3>
+          <div class="inline-2">
+            <div>
+              <label class="hint">Payment Method</label>
+              <select id="paymentMethod" class="select-input">
+                <option value="CASH">Cash</option>
+                <option value="CARD">Card (POS)</option>
+                <option value="ZELLE">Zelle</option>
+                <option value="CHECK">Check</option>
+              </select>
+            </div>
+            <div id="cashTaxBox">
+              <label class="hint">Tax for Cash</label>
+              <select id="cashTaxable" class="select-input">
+                <option value="true">Tax ON</option>
+                <option value="false">Tax OFF</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="zelleBox" class="zelle-box hidden" style="margin-top:12px;">Zelle payments always go to <strong>yaidelp@yahoo.com</strong></div>
+
+          <div style="margin-top:12px;">
+            <label class="hint">Notes</label>
+            <textarea id="saleNotes" rows="3" class="text-input" placeholder="Optional note for this POS sale"></textarea>
+          </div>
+
+          <div class="hint" style="margin-top:12px;">Sale price can be changed during checkout if approved. The final sold price will be saved on the invoice for accounting.</div>
+
+          <div class="totals">
+            <div class="total-row"><span>Subtotal</span><strong id="subtotalValue">$0.00</strong></div>
+            <div class="total-row"><span>Tax</span><strong id="taxValue">$0.00</strong></div>
+            <div class="total-row"><span>Processing Fee</span><strong id="feeValue">$0.00</strong></div>
+            <div class="total-row grand"><span>TOTAL</span><strong id="totalValue">$0.00</strong></div>
+          </div>
+
+          <button id="checkoutBtn" class="btn btn-primary" type="button" style="width:100%;margin-top:14px;">Create Invoice</button>
+          <div id="posMsg" class="msg"></div>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+
+  <div id="productModal" class="modal-overlay hidden">
+    <div class="card modal-shell">
+      <div class="modal-head">
+        <div>
+          <h3 id="modalPartName" style="margin:0;font-size:24px">Part Details</h3>
+          <div class="modal-sub">Customer view — internal costs are hidden</div>
+        </div>
+        <button id="productModalClose" class="btn btn-ghost" type="button">Close</button>
+      </div>
+
+      <div class="modal-layout">
+        <div>
+          <div id="modalMainImage" class="modal-main-image"></div>
+          <div id="modalThumbs" class="modal-thumbs"></div>
+        </div>
+
+        <div>
+          <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap">
+            <div>
+              <div class="hint">Part Code</div>
+              <div id="modalPartCode" style="font-size:18px;font-weight:900;color:var(--et-text)">-</div>
+            </div>
+            <div style="text-align:right">
+              <div class="hint">Sale Price</div>
+              <div id="modalPartPrice" class="price">$0.00</div>
+            </div>
+          </div>
+
+          <div id="modalPartInfo" class="detail-grid"></div>
+          <div id="modalPartDescription" class="modal-desc"></div>
+
+          <div style="display:flex;justify-content:flex-end;margin-top:16px">
+            <button id="modalAddBtn" class="btn btn-primary" type="button">Add to Cart</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <script src="/static/app-shell.js?v=2"></script>
+  <script src="/static/parts_store.js?v=1"></script>
+</body>
+</html>

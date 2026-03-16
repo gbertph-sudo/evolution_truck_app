@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="stylesheet" href="/static/et-theme.css?v=1">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Service History - Evolution Truck</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f4f6f8; }
+    header {
+      background:#111; color:#fff; padding:14px 18px;
+      display:flex; justify-content:space-between; align-items:center;
+    }
+    header a { color:#fff; text-decoration:none; }
+    .wrap { max-width: 1100px; margin: 20px auto; padding: 0 14px; }
+    .card {
+      background:#fff; border-radius:10px; padding:16px;
+      box-shadow:0 2px 10px rgba(0,0,0,.06); margin-bottom:14px;
+    }
+    .muted { color:#666; font-size:14px; }
+    button {
+      padding:10px 14px; border:none; border-radius:8px; cursor:pointer;
+      background:#d61f2c; color:#fff; font-weight:600;
+    }
+    button.secondary {
+      background: transparent; color: #d61f2c; border: 1px solid #d61f2c;
+    }
+    .card h2 { position: relative; margin-top:0; }
+    .card h2::after {
+      content: ""; display:block; width:44px; height:3px; margin-top:8px;
+      border-radius:999px; background: linear-gradient(90deg, #d61f2c, #ff3b30);
+    }
+    .actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:18px; }
+    .badge {
+      display:inline-block; padding:6px 10px; background:#fff3f3; color:#d61f2c;
+      border:1px solid #ffd3d3; border-radius:999px; font-size:12px; font-weight:700;
+    }
+    .box {
+      background:#fafafa; border:1px dashed #ddd; border-radius:10px; padding:14px;
+      margin-top:16px;
+    }
+  </style>
+  <link rel="stylesheet" href="/static/et-layout.css?v=3">
+</head>
+<body>
+  
+  <section class="et-module-hero">
+    <div class="et-module-hero-inner">
+      <div class="et-module-hero-top">
+        <div class="et-brand-block">
+          <div class="et-brand-logo">ET</div>
+          <div>
+            <div class="et-brand-kicker">History Workspace</div>
+            <h1 class="et-brand-title">Service History</h1>
+            <p class="et-brand-subtitle">Review previous repairs and maintenance history by vehicle.</p>
+          </div>
+        </div>
+
+        <div class="et-user-panel">
+          <div class="et-user-row">
+            <div><div class="et-user-meta-label">Module</div><div class="et-user-meta-value">Service History</div></div>
+            <div><div class="et-user-meta-label">System</div><div class="et-user-meta-value">Online</div></div>
+          </div>
+          <div class="et-user-row">
+            <div><div class="et-user-meta-label">Area</div><div class="et-user-meta-value">History Workspace</div></div>
+            <div><div class="et-user-meta-label">App</div><div class="et-user-meta-value">Evolution Truck</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="et-module-actions">
+        <div class="et-breadcrumb"><a href="/dashboard.html">Dashboard</a> / <span>Service History</span></div>
+        <div class="et-header-buttons">
+          <button class="et-btn et-btn-secondary" type="button" onclick="window.location.href='/dashboard.html'">Dashboard</button>
+          <button class="et-btn et-btn-secondary" type="button" id="moduleLogoutBtn">Logout</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <div class="wrap">
+    <div class="card">
+      <h2>Service History</h2>
+      <div class="muted">View past repairs by vehicle.</div>
+
+      <div style="margin-top:14px;">
+        <span class="badge">Placeholder module</span>
+      </div>
+
+      <div class="box">
+        <strong>Screen ready.</strong><br><br>
+        This page is already connected for navigation.<br>
+        You can build the full logic later without changing the route or the dashboard card.
+      </div>
+
+      <div class="actions">
+        <button onclick="window.location.href='/dashboard.html'">Back to Dashboard</button>
+        <button onclick="alert('This module is scaffolded and ready for development.')">Test</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+  const btn = document.getElementById("moduleLogoutBtn");
+  if (btn) {
+    btn.addEventListener("click", function(){
+      ["access_token","token","token_type","role_name","role","username","full_name","jwt"].forEach(k => {
+        try { localStorage.removeItem(k); sessionStorage.removeItem(k); } catch(e) {}
+      });
+      window.location.href = "/static/index.html";
+    });
+  }
+});
+</script>
+
+</body>
+</html>

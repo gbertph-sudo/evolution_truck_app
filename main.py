@@ -27,7 +27,7 @@ from database import Base, engine, get_db
 from routers.inventory import router as inventory_router
 
 from routers import companies, customers, vehicles
-from routers import work_orders
+from routers import work_orders, parts_store
 
 
 # ======================================================
@@ -63,6 +63,7 @@ app.include_router(companies.router, prefix="/api")
 app.include_router(customers.router, prefix="/api")
 app.include_router(vehicles.router, prefix="/api")
 app.include_router(work_orders.router)
+app.include_router(parts_store.router, prefix="/api")
 
 app.include_router(inventory_router, prefix="/api")
 

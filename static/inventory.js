@@ -6,6 +6,7 @@ const API = {
   suppliers: "/api/inventory/suppliers",
   adjust: (id) => `/api/inventory/${id}/adjust`,
   imagesList: (id) => `/api/inventory/${id}/images`,
+  imageUpload: (id) => `/api/inventory/${id}/images/upload`,
   imageDelete: (imageId) => `/api/inventory/images/${imageId}`,
 
   // ✅ Movements global
@@ -795,22 +796,46 @@ async function loadImages() {
   }
 }
 
+function setGalleryMainImage(url, altText = "") {
+  const mainImg = $("galleryMainImage");
+  const empty = $("galleryEmpty");
+  if (!mainImg || !empty) return;
+
+  if (!url) {
+    mainImg.src = "";
+    mainImg.alt = altText || "Item photo";
+    mainImg.style.display = "none";
+    empty.style.display = "";
+    return;
+  }
+
+  mainImg.src = url;
+  mainImg.alt = altText || "Item photo";
+  mainImg.style.display = "";
+  empty.style.display = "none";
+}
+
 function renderImages(list) {
   const grid = $("imagesGrid");
   if (!grid) return;
 
   if (!list.length) {
-    grid.innerHTML = '<div class="muted">No images yet.</div>';
+    grid.innerHTML = "";
+    setGalleryMainImage("", "");
     return;
   }
+
+  const selected = list.find(img => img.is_primary) || list[0];
+  setGalleryMainImage(selected?.image_url || "", selected?.alt_text || "");
 
   grid.innerHTML = list.map(img => {
     const url = img.image_url ?? "";
     const primary = img.is_primary ?? false;
+    const safeAlt = img.alt_text ?? "";
 
     return `
-      <div class="img-card">
-        <img src="${url}" alt="${img.alt_text ?? ""}">
+      <div class="gallery-thumb ${primary ? "active" : ""}" data-imgpick="${img.id}">
+        <img src="${url}" alt="${safeAlt}">
         <div class="cap">
           <span class="tag ${primary ? "primary" : ""}">${primary ? "PRIMARY" : "IMG"}</span>
           <button class="danger" type="button" data-imgdel="${img.id}">Delete</button>
@@ -820,56 +845,97 @@ function renderImages(list) {
   }).join("");
 
   grid.onclick = async (e) => {
-    const btn = e.target.closest("button");
-    if (!btn) return;
+    const delBtn = e.target.closest("button[data-imgdel]");
+    if (delBtn) {
+      const imageId = delBtn.dataset.imgdel ? parseInt(delBtn.dataset.imgdel, 10) : null;
+      if (!imageId) return;
 
-    const imageId = btn.dataset.imgdel ? parseInt(btn.dataset.imgdel, 10) : null;
-    if (!imageId) return;
+      try {
+        const res = await apiSend(API.imageDelete(imageId), "DELETE", null);
+        if (!res && res !== null) return;
 
-    try {
-      const res = await apiSend(API.imageDelete(imageId), "DELETE", null);
-      if (!res && res !== null) return;
-
-      await loadImages();
-      setMsg("imgMsg", "Deleted ✅");
-    } catch (err) {
-      console.error(err);
-      setMsg("imgMsg", "Delete error. Check console.", true);
+        await loadImages();
+        setMsg("imgMsg", "Deleted ✅");
+      } catch (err) {
+        console.error(err);
+        setMsg("imgMsg", "Delete error. Check console.", true);
+      }
+      return;
     }
+
+    const card = e.target.closest("[data-imgpick]");
+    if (!card) return;
+
+    const imageId = card.dataset.imgpick ? parseInt(card.dataset.imgpick, 10) : null;
+    const picked = list.find(x => x.id === imageId);
+    if (!picked) return;
+
+    grid.querySelectorAll(".gallery-thumb").forEach(el => el.classList.remove("active"));
+    card.classList.add("active");
+    setGalleryMainImage(picked.image_url ?? "", picked.alt_text ?? "");
   };
+}
+
+function updateImagePreview() {
+  const fileInput = $("img_file");
+  const wrap = $("imgPreviewWrap");
+  const img = $("imgPreview");
+  if (!fileInput || !wrap || !img) return;
+
+  const file = fileInput.files && fileInput.files[0];
+  if (!file) {
+    wrap.style.display = "none";
+    img.src = "";
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    img.src = reader.result;
+    wrap.style.display = "";
+  };
+  reader.readAsDataURL(file);
 }
 
 async function addImage() {
   if (!currentItemId) return;
 
-  const image_url = ($("img_url").value || "").trim();
+  const fileInput = $("img_file");
+  const file = fileInput?.files?.[0] || null;
   const is_primary = $("img_primary").value === "true";
   const alt_text = ($("img_alt").value || "").trim();
 
-  if (!image_url) {
-    setMsg("imgMsg", "Image URL is required.", true);
+  if (!file) {
+    setMsg("imgMsg", "Please choose an image file.", true);
     return;
   }
 
-  try {
-    setMsg("imgMsg", "Adding...");
-    const res = await apiSend(API.imagesList(currentItemId), "POST", {
-      image_url,
-      is_primary,
-      alt_text: alt_text || null,
-      position: 0
-    });
-    if (!res) return;
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("is_primary", String(is_primary));
+  fd.append("alt_text", alt_text || "");
+  fd.append("position", "0");
 
-    $("img_url").value = "";
+  try {
+    setMsg("imgMsg", "Uploading...");
+    const res = await fetch(API.imageUpload(currentItemId), {
+      method: "POST",
+      headers: { ...getAuthHeaders() },
+      body: fd,
+    });
+    if (await handleUnauthorized(res)) return;
+    if (!res.ok) throw new Error(await res.text());
+
+    fileInput.value = "";
     $("img_alt").value = "";
     $("img_primary").value = "false";
+    updateImagePreview();
 
     await loadImages();
-    setMsg("imgMsg", "Added ✅");
+    setMsg("imgMsg", "Uploaded ✅");
   } catch (err) {
     console.error(err);
-    setMsg("imgMsg", "Add image error. Check console.", true);
+    setMsg("imgMsg", "Upload image error. Check console.", true);
   }
 }
 
@@ -928,8 +994,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("btnDoAdjust")?.addEventListener("click", doAdjustStock);
   $("adj_type")?.addEventListener("change", refreshAdjustUI);
 
-  $("btnOpenImages")?.addEventListener("click", async () => { setMsg("imgMsg",""); openModal("modalImages"); await loadImages(); });
+  $("btnOpenImages")?.addEventListener("click", async () => { setMsg("imgMsg",""); openModal("modalImages"); updateImagePreview(); await loadImages(); });
   $("closeImages")?.addEventListener("click", (e) => { e.preventDefault(); closeModal("modalImages"); });
+  $("img_file")?.addEventListener("change", updateImagePreview);
   $("btnAddImage")?.addEventListener("click", addImage);
 
   $("navNew")?.addEventListener("click", () => { showView("form"); resetFormToNew(); setActiveTile("navNew"); });

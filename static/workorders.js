@@ -640,6 +640,7 @@ function renderDetails(wo){
   renderWOItems(wo);
   renderWOLabor(wo);
   renderInvoice(wo);
+  updateCloseWorkOrderButton(wo);
 }
 
 function renderWOItems(wo){
@@ -1074,7 +1075,7 @@ async function init(){
   $("logoutBtn").addEventListener("click", () => {
     localStorage.removeItem("token");
     localStorage.removeItem("access_token");
-    window.location.href = "/static/login.html";
+    window.location.href = "/static/index.html";
   });
 
   // list refresh
@@ -1213,6 +1214,8 @@ async function init(){
 
   // invoice
   $("createInvoiceBtn").addEventListener("click", createInvoice);
+  $("closeWorkOrderBtn")?.addEventListener("click", closeWorkOrder);
+  if ($("closeWorkOrderBtn")) $("closeWorkOrderBtn").disabled = true;
 
   // detect + load initial
   setMsg("listMsg","Detecting API routes...");
@@ -1241,3 +1244,53 @@ async function init(){
 }
 
 init();
+
+// --------------------
+// CLOSE WORK ORDER
+// --------------------
+function updateCloseWorkOrderButton(wo){
+  const btn = $("closeWorkOrderBtn");
+  if (!btn) return;
+
+  const st = String(wo?.status || "").toUpperCase();
+  const closable = st === "OPEN" || st === "IN_PROGRESS";
+
+  btn.disabled = !closable;
+  btn.classList.remove("is-hidden");
+  btn.textContent = closable ? "Close Work Order" : `Closed (${st || "DONE"})`;
+  btn.title = closable ? "Set this work order to DONE" : "This work order is already closed";
+}
+
+async function closeWorkOrder(){
+  if (!CURRENT_WO?.id) {
+    setMsg("detailsMsg", "Open a work order first.", true);
+    return;
+  }
+
+  const st = String(CURRENT_WO.status || "").toUpperCase();
+  if (!(st === "OPEN" || st === "IN_PROGRESS")) {
+    setMsg("detailsMsg", "This work order is already closed.", true);
+    updateCloseWorkOrderButton(CURRENT_WO);
+    return;
+  }
+
+  if (!confirm("Close this Work Order?\n\nStatus will change to DONE and parts/labor editing will be blocked.")) {
+    return;
+  }
+
+  try{
+    setMsg("detailsMsg", "Closing work order...");
+    await apiFetch(urlWOStatus(CURRENT_WO.id), {
+      method:"PUT",
+      headers: authHeaders(),
+      body: JSON.stringify({ status: "DONE" }),
+    });
+    await refreshDetails();
+    await loadWorkOrders();
+    renderWorkOrders();
+    setMsg("detailsMsg", "Work order closed.", false);
+    setTab("invoice");
+  }catch(e){
+    setMsg("detailsMsg", e.message || "Error closing work order", true);
+  }
+}

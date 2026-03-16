@@ -42,6 +42,32 @@ async function apiFetch(url, opts = {}){
   return await res.text();
 }
 
+async function openInvoicePdf(invoiceId){
+  const token = getToken();
+  const headers = token ? { "Authorization": `Bearer ${token}` } : {};
+
+  const res = await fetch(API.invoicePdf(invoiceId), { headers });
+  if (!res.ok){
+    let msg = `${res.status} ${res.statusText}`;
+    try{
+      const data = await res.json();
+      msg = data?.detail
+        ? (typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail))
+        : msg;
+    }catch{}
+    throw new Error(msg);
+  }
+
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  const win = window.open(url, "_blank");
+  if (!win) {
+    window.location.href = url;
+  }
+  setTimeout(() => window.URL.revokeObjectURL(url), 15000);
+}
+
+
 function money(n){
   const x = Number(n || 0);
   return `$${x.toFixed(2)}`;
@@ -219,7 +245,7 @@ async function onRowAction(e){
   if (!Number.isFinite(id)) return;
 
   if (act === "pdf"){
-    window.open(API.invoicePdf(id), "_blank");
+    await openInvoicePdf(id);
     return;
   }
 
@@ -538,29 +564,35 @@ async function refresh(){
 // =====================
 
 async function init(){
-  $("backBtn").addEventListener("click", ()=> window.location.href="/static/dashboard.html");
-  $("logoutBtn").addEventListener("click", ()=>{
+  ($("btnBack") || $("backBtn"))?.addEventListener("click", ()=> window.location.href="/dashboard.html");
+  $("logoutBtn")?.addEventListener("click", ()=>{
     localStorage.removeItem("token");
     localStorage.removeItem("access_token");
-    window.location.href="/static/login.html";
+    window.location.href="/static/index.html";
   });
 
-  $("refreshBtn").addEventListener("click", refresh);
-  $("q").addEventListener("keydown", e=>{ if (e.key==="Enter") refresh(); });
-  $("statusFilter").addEventListener("change", refresh);
+  $("refreshBtn")?.addEventListener("click", refresh);
+  $("q")?.addEventListener("keydown", e=>{ if (e.key==="Enter") refresh(); });
+  $("statusFilter")?.addEventListener("change", refresh);
 
-  $("closeModalBtn").addEventListener("click", closeModal);
-  $("modalBackdrop").addEventListener("click", e=>{
+  $("closeModalBtn")?.addEventListener("click", closeModal);
+  $("modalBackdrop")?.addEventListener("click", e=>{
     if (e.target === $("modalBackdrop")) closeModal();
   });
 
-  $("pdfBtn").addEventListener("click", ()=>{
+  $("pdfBtn")?.addEventListener("click", async ()=>{
     if (!CURRENT) return;
-    window.open(API.invoicePdf(CURRENT.id), "_blank");
+    try{
+      setMsg("modalMsg", "Generating PDF...");
+      await openInvoicePdf(CURRENT.id);
+      setMsg("modalMsg", "PDF ready ✅", false);
+    }catch(e){
+      setMsg("modalMsg", e.message || "Error generating PDF", true);
+    }
   });
 
-  $("markSentBtn").addEventListener("click", ()=> markSent().catch(e=>setMsg("modalMsg", e.message, true)));
-  $("voidBtn").addEventListener("click", ()=> voidInvoice().catch(e=>setMsg("modalMsg", e.message, true)));
+  $("markSentBtn")?.addEventListener("click", ()=> markSent().catch(e=>setMsg("modalMsg", e.message, true)));
+  $("voidBtn")?.addEventListener("click", ()=> voidInvoice().catch(e=>setMsg("modalMsg", e.message, true)));
   $("payBtn").addEventListener("click", ()=> payInvoice().catch(e=>setMsg("modalMsg", e.message, true)));
 
   $("payMethod").addEventListener("change", ()=>{

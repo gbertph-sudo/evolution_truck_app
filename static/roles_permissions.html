@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="stylesheet" href="/static/app-shell.css?v=2">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Roles & Permissions - Evolution Truck</title>
+  <style>
+    .card{background:#fff;border-radius:18px;padding:18px;box-shadow:var(--et-shadow);border:1px solid var(--et-border);}
+    .grid{display:grid;grid-template-columns:2fr 1fr;gap:16px;}
+    .muted{color:var(--et-muted);}
+    .placeholder{border:1px dashed #d0d5dd;border-radius:16px;padding:16px;background:#fafafa;}
+    .links{display:grid;gap:10px;}
+    .links a{display:flex;justify-content:space-between;align-items:center;text-decoration:none;color:var(--et-text);border:1px solid var(--et-border);border-radius:14px;background:#fff;padding:12px 14px;font-weight:700;}
+    @media (max-width:980px){.grid{grid-template-columns:1fr;}}
+  </style>
+</head>
+<body>
+  <section class="et-topbar">
+    <div class="et-topbar-inner">
+      <div class="et-topbar-row">
+        <div class="et-brand">
+          <div class="et-logo">ET</div>
+          <div>
+            <div class="et-brand-kicker">Security Workspace</div>
+            <h1 class="et-brand-title">Roles & Permissions</h1>
+            <div class="et-brand-subtitle">Define access rules by role.</div>
+          </div>
+        </div>
+        <div class="et-userbox">
+          <div class="et-usergrid">
+            <div><div class="et-userlabel">User</div><div class="et-uservalue" id="shellUserName">Signed in</div></div>
+            <div><div class="et-userlabel">Role</div><div class="et-uservalue" id="shellRoleName">-</div></div>
+            <div><div class="et-userlabel">Today</div><div class="et-uservalue" id="shellToday">-</div></div>
+            <div><div class="et-userlabel">System</div><div class="et-uservalue">Online</div></div>
+          </div>
+          <div class="et-status">✅ Session active.</div>
+        </div>
+      </div>
+      <div class="et-page-tools">
+        <div class="et-breadcrumb"><a href="/dashboard.html">Dashboard</a> / <span>Roles & Permissions</span></div>
+        <div class="et-page-actions">
+          <button class="et-btn et-btn-secondary" type="button" onclick="window.location.href='/dashboard.html'">Dashboard</button>
+          <button class="et-btn et-btn-secondary" type="button" id="logoutBtn">Logout</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <main class="et-main">
+    <div class="et-page-head">
+      <div>
+        <h2 class="et-page-title">Roles & Permissions</h2>
+        <div class="et-page-desc">Define access rules by role.</div>
+      </div>
+      <div><span class="et-badge et-badge-ready">Ready for development</span></div>
+    </div>
+
+    <div class="grid">
+      <section class="card">
+        <h3 style="margin-top:0;">Module Workspace</h3>
+        <p class="muted">This page now has the same professional visual system as the rest of the app.</p>
+        <div class="placeholder">
+          <strong>Visual fixed.</strong><br><br>
+          This module is ready for you to build later without changing the global visual identity.
+        </div>
+      </section>
+
+      <aside class="card">
+        <h3 style="margin-top:0;">Quick Links</h3>
+        <div class="links">
+          <a href="/dashboard.html"><span>Back to Dashboard</span><span>→</span></a>
+          <a href="/static/workorders.html"><span>Work Orders</span><span>→</span></a>
+          <a href="/static/inventory.html"><span>Inventory</span><span>→</span></a>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <script src="/static/app-shell.js?v=2"></script>
+</body>
+</html>

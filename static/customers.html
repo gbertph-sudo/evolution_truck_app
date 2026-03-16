@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Customers - Evolution Truck</title>
+  <link rel="stylesheet" href="/static/app-shell.css?v=1">
 
   <!-- ✅ ET Theme -->
   <link rel="stylesheet" href="/static/et-theme.css?v=1" />
@@ -93,20 +94,59 @@
       user-select:none;
     }
     .inline-check input{ width:auto; }
+  
+    .wrap{ max-width:100% !important; margin:0 !important; padding:0 !important; }
+    .card{ border-radius:20px !important; box-shadow:var(--et-shadow,0 10px 28px rgba(16,24,40,.08)) !important; }
+    .et-main .muted{ color:#667085; }
+    .et-page-head{ margin-bottom:16px; }
+
   </style>
 </head>
 
 <body>
-  <div class="wrap">
-    <header class="topbar">
-      <h1>Customers</h1>
-      <div class="topbar-right">
-        <span class="pill" id="apiStatus">API: —</span>
-        <button class="ghost" id="btnBack" type="button">⬅ Back</button>
-      </div>
-    </header>
+  <section class="et-topbar">
+    <div class="et-topbar-inner">
+      <div class="et-topbar-row">
+        <div class="et-brand">
+          <div class="et-logo">ET</div>
+          <div>
+            <div class="et-brand-kicker">Customer Workspace</div>
+            <h1 class="et-brand-title">Customers</h1>
+            <div class="et-brand-subtitle">Create customers, assign companies and manage account records.</div>
+          </div>
+        </div>
 
-    <!-- CREATE (rápido) -->
+        <div class="et-userbox">
+          <div class="et-usergrid">
+            <div><div class="et-userlabel">User</div><div class="et-uservalue" id="shellUserName">Signed in</div></div>
+            <div><div class="et-userlabel">Role</div><div class="et-uservalue" id="shellRoleName">-</div></div>
+            <div><div class="et-userlabel">Today</div><div class="et-uservalue" id="shellToday">-</div></div>
+            <div><div class="et-userlabel">System</div><div class="et-uservalue">Online</div></div>
+          </div>
+          <div class="et-status">✅ Session active.</div>
+        </div>
+      </div>
+
+      <div class="et-page-tools">
+        <div class="et-breadcrumb"><a href="/dashboard.html">Dashboard</a> / <span>Customers</span></div>
+        <div class="et-page-actions">
+          <button class="et-btn et-btn-secondary" id="btnBack" type="button">Dashboard</button>
+          <button class="et-btn et-btn-secondary" id="logoutBtn" type="button">Logout</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <main class="et-main">
+    <div class="et-page-head">
+      <div>
+        <h2 class="et-page-title">Customers</h2>
+        <div class="et-page-desc">Create customers, assign companies and manage account records.</div>
+      </div>
+      <div class="et-badges"><span class="et-badge et-badge-active">Active Module</span><span class="et-badge et-badge-ready">CRM</span></div>
+    </div>
+  <div class="wrap" style="max-width:100%; margin:0; padding:0;">
+    <div class="wrap"><!-- CREATE (rápido) -->
     <section class="card">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <h2 style="margin:0;">Quick Create</h2>
@@ -222,5 +262,16 @@
   </div>
 
   <script src="/static/customers.js?v=2"></script>
+  <script src="/static/app-shell.js?v=1"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      try { if (window.etGetUserName) document.getElementById("shellUserName").textContent = etGetUserName(); } catch(e){}
+      try { if (window.etGetRoleName) document.getElementById("shellRoleName").textContent = etGetRoleName() || "-"; } catch(e){}
+      try { document.getElementById("shellToday").textContent = new Date().toLocaleString([], {year:"numeric",month:"short",day:"2-digit",hour:"2-digit",minute:"2-digit"}); } catch(e){}
+      const lb = document.getElementById("logoutBtn");
+      if (lb && window.etLogout) lb.addEventListener("click", etLogout);
+    });
+  </script>
+  </main>
 </body>
 </html>

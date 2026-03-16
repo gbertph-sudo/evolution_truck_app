@@ -7,7 +7,6 @@ function parseJwt(token) {
   try {
     if (!token) return null;
 
-    // por si guardaron "Bearer <token>"
     const parts0 = String(token).trim().split(" ");
     const raw = (parts0.length === 2 && parts0[0].toLowerCase() === "bearer") ? parts0[1] : token;
 
@@ -29,16 +28,14 @@ function parseJwt(token) {
 }
 
 function getToken() {
-  // usa el que tú tienes en tu app
   const t = localStorage.getItem("access_token") || localStorage.getItem("token") || "";
   return String(t || "").trim();
 }
 
 function isTokenExpired(payload) {
-  // exp viene en segundos (unix). Date.now() en ms.
   try {
     const exp = payload?.exp;
-    if (!exp) return false; // si no trae exp, no bloqueamos
+    if (!exp) return false;
     return (Date.now() / 1000) >= Number(exp);
   } catch {
     return false;
@@ -46,17 +43,22 @@ function isTokenExpired(payload) {
 }
 
 function getRoleName() {
-  // 1) si lo guardaste directo
   const direct = (localStorage.getItem("role_name") || localStorage.getItem("role") || "").trim();
   if (direct) return direct.toUpperCase();
 
-  // 2) si viene dentro del JWT
   const token = getToken();
   const payload = token ? parseJwt(token) : null;
-
-  // puede venir como role (tu backend lo manda así)
   const rn = payload?.role_name || payload?.role || payload?.roleName || "";
   return String(rn || "").trim().toUpperCase();
+}
+
+function getUserName() {
+  const direct = (localStorage.getItem("full_name") || localStorage.getItem("username") || "").trim();
+  if (direct) return direct;
+
+  const token = getToken();
+  const payload = token ? parseJwt(token) : null;
+  return payload?.username || "Signed in";
 }
 
 function isAdminRole(roleName) {
@@ -67,24 +69,132 @@ function redirectToLogin() {
   window.location.replace("/static/index.html");
 }
 
+function setText(id, value){
+  const el = $(id);
+  if (el) el.textContent = value;
+}
+
+function formatToday() {
+  const d = new Date();
+  return d.toLocaleString([], {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+async function fetchJson(url) {
+  const token = getToken();
+  const headers = token ? { "Authorization": `Bearer ${token}` } : {};
+  const res = await fetch(url, { headers });
+  if (res.status === 401) {
+    redirectToLogin();
+    throw new Error("HTTP 401");
+  }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+async function loadKpis() {
+  try {
+    const workOrders = await fetchJson("/work-orders");
+    if (Array.isArray(workOrders)) {
+      const openCount = workOrders.filter(x => {
+        const s = String(x.status || "").toUpperCase();
+        return s === "OPEN" || s === "IN_PROGRESS";
+      }).length;
+      setText("kpiWorkOrders", String(openCount));
+    } else {
+      setText("kpiWorkOrders", "0");
+    }
+  } catch {
+    setText("kpiWorkOrders", "--");
+  }
+
+  try {
+    const invoices = await fetchJson("/invoices");
+    if (Array.isArray(invoices)) {
+      const draftCount = invoices.filter(x => {
+        const s = String(x.status || "").toUpperCase();
+        return s === "DRAFT" || s === "OPEN" || s === "PENDING";
+      }).length;
+      setText("kpiInvoices", String(draftCount));
+    } else {
+      setText("kpiInvoices", "0");
+    }
+  } catch {
+    setText("kpiInvoices", "--");
+  }
+
+  try {
+    const inventory = await fetchJson("/api/inventory");
+    if (Array.isArray(inventory)) {
+      const lowStockCount = inventory.filter(x => {
+        const qty = Number(x.quantity_in_stock || 0);
+        const min = Number(x.minimum_stock || 0);
+        return qty <= min;
+      }).length;
+      setText("kpiInventory", String(lowStockCount));
+    } else {
+      setText("kpiInventory", "0");
+    }
+  } catch {
+    setText("kpiInventory", "--");
+  }
+}
+
+function setupSearch() {
+  const searchInput = $("moduleSearch");
+  const clearBtn = $("clearSearchBtn");
+  const items = Array.from(document.querySelectorAll(".module-item"));
+
+  function applyFilter() {
+    const q = String(searchInput?.value || "").trim().toLowerCase();
+    items.forEach(card => {
+      const hay = (card.dataset.search || "") + " " + card.textContent;
+      const match = !q || hay.toLowerCase().includes(q);
+      card.classList.toggle("hidden-by-search", !match);
+    });
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener("input", applyFilter);
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      if (searchInput) searchInput.value = "";
+      applyFilter();
+      if (searchInput) searchInput.focus();
+    });
+  }
+}
+
+function bindNavButton(id, route) {
+  const el = $(id);
+  if (el) {
+    el.addEventListener("click", () => {
+      window.location.href = route;
+    });
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
-  // --- proteger dashboard ---
   const token = getToken();
   if (!token) {
     redirectToLogin();
     return;
   }
 
-  // --- validar expiración ---
   const payload = parseJwt(token);
   if (!payload) {
-    // token corrupto
     redirectToLogin();
     return;
   }
 
   if (isTokenExpired(payload)) {
-    // token vencido
     localStorage.removeItem("access_token");
     localStorage.removeItem("token");
     localStorage.removeItem("token_type");
@@ -94,101 +204,48 @@ document.addEventListener("DOMContentLoaded", () => {
     return;
   }
 
-  // --- estado ---
   const msg = $("msg");
   if (msg) {
     msg.textContent = "✅ Session active.";
-    msg.style.color = "green";
+    msg.style.color = "#86efac";
   }
 
-  // --- INVENTORY ---
-  const goInventoryBtn = $("goInventoryBtn");
-  if (goInventoryBtn) {
-    goInventoryBtn.addEventListener("click", () => {
-      window.location.href = "/static/inventory.html";
-    });
-  } else {
-    console.log("❌ No encuentro #goInventoryBtn en dashboard.html");
-  }
+  setText("userNameValue", getUserName());
+  setText("roleNameValue", getRoleName() || "-");
+  setText("todayValue", formatToday());
 
-  // --- CUSTOMERS ---
-  const goCustomersBtn = $("goCustomersBtn");
-  if (goCustomersBtn) {
-    goCustomersBtn.addEventListener("click", () => {
-      window.location.href = "/static/customers.html";
-    });
-  } else {
-    console.log("ℹ️ No encuentro #goCustomersBtn (si todavía no lo pusiste, ok)");
-  }
+  bindNavButton("goInventoryBtn", "/static/inventory.html");
+  bindNavButton("goCustomersBtn", "/static/customers.html");
+  bindNavButton("goCompaniesBtn", "/static/companies.html");
+  bindNavButton("goVehiclesBtn", "/static/vehicles.html");
+  bindNavButton("goWorkOrdersBtn", "/static/workorders.html");
+  bindNavButton("btnInvoices", "/static/invoices.html");
 
-  // --- ✅ COMPANIES (NUEVO) ---
-  const goCompaniesBtn = $("goCompaniesBtn");
-  if (goCompaniesBtn) {
-    goCompaniesBtn.addEventListener("click", () => {
-      window.location.href = "/static/companies.html";
-    });
-  } else {
-    console.log("ℹ️ No encuentro #goCompaniesBtn (revisa que el botón exista en dashboard.html)");
-  }
+  bindNavButton("goPosBtn", "/static/parts_store.html");
+  bindNavButton("goServiceHistoryBtn", "/static/service_history.html");
+  bindNavButton("goVendorsBtn", "/static/vendors.html");
+  bindNavButton("goPurchaseOrdersBtn", "/static/purchase_orders.html");
+  bindNavButton("goQuotesBtn", "/static/quotes.html");
+  bindNavButton("goPaymentsBtn", "/static/payments.html");
+  bindNavButton("goAccountingBtn", "/static/accounting.html");
+  bindNavButton("goLaborTrackingBtn", "/static/labor_tracking.html");
+  bindNavButton("goAppointmentsBtn", "/static/appointments.html");
+  bindNavButton("goTasksBtn", "/static/tasks.html");
+  bindNavButton("goWarrantyBtn", "/static/warranty.html");
+  bindNavButton("goReportsBtn", "/static/reports.html");
+  bindNavButton("goAnalyticsBtn", "/static/analytics.html");
+  bindNavButton("goRolesBtn", "/static/roles.html");
+  bindNavButton("goSettingsBtn", "/static/settings.html");
+  bindNavButton("goAuditLogBtn", "/static/audit_log.html");
 
-  // --- VEHICLES ---
-  const goVehiclesBtn = $("goVehiclesBtn");
-  if (goVehiclesBtn) {
-    goVehiclesBtn.addEventListener("click", () => {
-      window.location.href = "/static/vehicles.html";
-    });
-  } else {
-    console.log("ℹ️ No encuentro #goVehiclesBtn (si todavía no lo pusiste, ok)");
-  }
-  
-    // --- WORK ORDERS ---
-  const goWorkOrdersBtn = $("goWorkOrdersBtn");
-  if (goWorkOrdersBtn) {
-    goWorkOrdersBtn.addEventListener("click", () => {
-      window.location.href = "/static/workorders.html";
-    });
-  } else {
-    console.log("ℹ️ No encuentro #goWorkOrdersBtn (revisa que el botón exista en dashboard.html)");
-  }
-
-  // Invoices tile
-const tileInvoices = document.getElementById("tileInvoices");
-const btnInvoices = document.getElementById("btnInvoices");
-
-function goInvoices(){
-  window.location.href = "/static/invoices.html";
-}
-
-if (btnInvoices) btnInvoices.addEventListener("click", (e) => {
-  e.preventDefault();
-  e.stopPropagation();
-  goInvoices();
-});
-
-if (tileInvoices) tileInvoices.addEventListener("click", () => {
-  goInvoices();
-});
-
-  // --- USERS (ADMIN/SUPERADMIN) ---
   const roleName = getRoleName();
   const admin = isAdminRole(roleName);
-
-  console.log("ROLE:", roleName, "ADMIN?:", admin);
-
-  const createUsersCard = $("createUsersCard");  // ID del HTML
-  const goUsersBtn = $("goUsersBtn");            // ID del HTML
-
+  const createUsersCard = $("createUsersCard");
   if (createUsersCard) {
     createUsersCard.style.display = admin ? "flex" : "none";
   }
+  bindNavButton("goUsersBtn", "/static/users.html");
 
-  if (goUsersBtn) {
-    goUsersBtn.addEventListener("click", () => {
-      window.location.href = "/static/users.html";
-    });
-  }
-
-  // --- LOGOUT ---
   const logoutBtn = $("logoutBtn");
   if (logoutBtn) {
     logoutBtn.addEventListener("click", () => {
@@ -197,7 +254,12 @@ if (tileInvoices) tileInvoices.addEventListener("click", () => {
       localStorage.removeItem("token_type");
       localStorage.removeItem("role_name");
       localStorage.removeItem("role");
+      localStorage.removeItem("username");
+      localStorage.removeItem("full_name");
       redirectToLogin();
     });
   }
+
+  setupSearch();
+  loadKpis();
 });

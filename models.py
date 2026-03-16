@@ -50,11 +50,15 @@ class User(Base):
 # ======================================================
 # COMPANIES / CUSTOMERS / VEHICLES
 # ======================================================
+# ✅ Tabla puente many-to-many:
+#    - Un customer puede tener varias companies
+#    - Una company puede tener varios customers
 customer_companies = Table(
     "customer_companies",
     Base.metadata,
     Column("customer_id", ForeignKey("customers.id", ondelete="CASCADE"), primary_key=True, nullable=False),
     Column("company_id", ForeignKey("companies.id", ondelete="CASCADE"), primary_key=True, nullable=False),
+    # Índices para búsquedas rápidas (ok en SQLAlchemy)
     Index("ix_customer_companies_customer_id", "customer_id"),
     Index("ix_customer_companies_company_id", "company_id"),
 )
@@ -65,8 +69,11 @@ class Company(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False, index=True)
+
+    # ✅ NUEVO: soft-disable (no borrar)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", index=True)
 
+    # ✅ Many-to-many con customers
     customers: Mapped[List["Customer"]] = relationship(
         "Customer",
         secondary=customer_companies,
@@ -85,8 +92,11 @@ class Customer(Base):
     name: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
     phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     email: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+
+    # ✅ NUEVO: soft-disable (no borrar)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", index=True)
 
+    # ✅ many-to-many: customer <-> companies
     companies: Mapped[List["Company"]] = relationship(
         "Company",
         secondary=customer_companies,
@@ -94,6 +104,7 @@ class Customer(Base):
         passive_deletes=True,
     )
 
+    # ✅ 1 customer puede tener varios vehicles
     vehicles: Mapped[List["Vehicle"]] = relationship(
         "Vehicle",
         back_populates="customer",
@@ -108,11 +119,15 @@ class Vehicle(Base):
     __tablename__ = "vehicles"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
     vin: Mapped[Optional[str]] = mapped_column(String(17), unique=True, nullable=True, index=True)
+
     unit_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, index=True)
     make: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     model: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     year: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    # ✅ NUEVO: soft-disable (no borrar)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", index=True)
 
     customer_id: Mapped[Optional[int]] = mapped_column(
@@ -133,18 +148,28 @@ class WorkOrder(Base):
     __tablename__ = "work_orders"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    work_order_number: Mapped[Optional[str]] = mapped_column(String(30), unique=True, nullable=True, index=True)
+
+    # ✅ NUEVO: número amigable para imprimir / PDF (WO-000123)
+    work_order_number: Mapped[Optional[str]] = mapped_column(
+        String(30),
+        unique=True,
+        nullable=True,
+        index=True
+    )
 
     customer_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("customers.id", ondelete="SET NULL"),
         nullable=True,
         index=True
     )
+
+    # ✅ NUEVO: company específica para esta orden (importante por many-to-many)
     company_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("companies.id", ondelete="SET NULL"),
         nullable=True,
         index=True
     )
+
     vehicle_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("vehicles.id", ondelete="SET NULL"),
         nullable=True,
@@ -158,8 +183,10 @@ class WorkOrder(Base):
 
     status: Mapped[str] = mapped_column(String(30), nullable=False, index=True, default="OPEN")
     description: Mapped[str] = mapped_column(String(1000), nullable=False)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
+    # ✅ relaciones (ayudan para joins / PDF / UI)
     customer: Mapped[Optional["Customer"]] = relationship("Customer")
     company: Mapped[Optional["Company"]] = relationship("Company")
     vehicle: Mapped[Optional["Vehicle"]] = relationship("Vehicle")
@@ -173,16 +200,17 @@ class WorkOrder(Base):
     )
 
     items: Mapped[List["WorkOrderItem"]] = relationship(
-        "WorkOrderItem",
-        back_populates="work_order",
-        cascade="all, delete-orphan",
+    "WorkOrderItem",
+    back_populates="work_order",
+    cascade="all, delete-orphan"
     )
 
     labors: Mapped[List["WorkOrderLabor"]] = relationship(
         "WorkOrderLabor",
         back_populates="work_order",
-        cascade="all, delete-orphan",
+        cascade="all, delete-orphan"
     )
+
 
 
 # ======================================================
@@ -206,10 +234,11 @@ class WorkOrderItem(Base):
     )
 
     description_snapshot: Mapped[str] = mapped_column(String(255), nullable=False)
+
     qty: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=Decimal("1.00"))
     unit_price_snapshot: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
     line_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
-    cost_snapshot: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, server_default="0.00")
+    cost_snapshot = Column(Numeric(12, 2), nullable=False, server_default="0")
 
     added_by_user_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"),
@@ -223,28 +252,6 @@ class WorkOrderItem(Base):
     inventory_item: Mapped["InventoryItem"] = relationship("InventoryItem")
     added_by: Mapped[Optional["User"]] = relationship("User")
 
-
-# ======================================================
-# WORK ORDER LABOR
-# ======================================================
-class WorkOrderLabor(Base):
-    __tablename__ = "work_order_labors"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    work_order_id: Mapped[int] = mapped_column(
-        ForeignKey("work_orders.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    description: Mapped[str] = mapped_column(String(255), nullable=False)
-    hours: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=Decimal("1.00"))
-    rate: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
-    line_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-
-    work_order: Mapped["WorkOrder"] = relationship("WorkOrder", back_populates="labors")
-
-
 # ======================================================
 # INVOICES
 # ======================================================
@@ -252,6 +259,7 @@ class Invoice(Base):
     __tablename__ = "invoices"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
     invoice_number: Mapped[Optional[str]] = mapped_column(String(30), unique=True, nullable=True, index=True)
 
     work_order_id: Mapped[int] = mapped_column(
@@ -265,11 +273,16 @@ class Invoice(Base):
         index=True
     )
 
+    
+
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="DRAFT", index=True)
+
     subtotal: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
     tax: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
     total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
+
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     work_order: Mapped["WorkOrder"] = relationship("WorkOrder", back_populates="invoice")
@@ -278,7 +291,6 @@ class Invoice(Base):
     payment_method: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, index=True)
     processing_fee: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, server_default="0.00")
     paid_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-
 
 class InvoiceItem(Base):
     __tablename__ = "invoice_items"
@@ -310,15 +322,26 @@ class InvoiceItem(Base):
         index=True,
     )
     description: Mapped[str] = mapped_column(String(255), nullable=False)
-    qty: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=Decimal("1.00"))
-    unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
-    line_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
-    cost_snapshot: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, server_default="0.00")
 
+    qty: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        nullable=False,
+        default=Decimal("1.00"),
+    )
+    unit_price: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        nullable=False,
+        default=Decimal("0.00"),
+    )
+    line_total: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        nullable=False,
+        default=Decimal("0.00"),
+    )
+    cost_snapshot: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, server_default="0.00")
     invoice: Mapped["Invoice"] = relationship("Invoice", back_populates="items")
     inventory_item: Mapped[Optional["InventoryItem"]] = relationship("InventoryItem")
     work_order_item: Mapped[Optional["WorkOrderItem"]] = relationship("WorkOrderItem")
-
 
 # ======================================================
 # INVENTORY - /api/inventory
@@ -394,6 +417,8 @@ class InventoryItem(Base):
     created_by: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
     updated_by: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
     editable_price: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # ✅ CAMBIO: server_default para soportar Alembic + filas viejas
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
@@ -426,13 +451,19 @@ class InventoryMovement(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     item_id: Mapped[int] = mapped_column(ForeignKey("inventory_items.id"), nullable=False, index=True)
-    movement_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+
+    movement_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)  # in|out|adjustment
     quantity_moved: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # ✅ Unit cost (solo para IN, opcional en otros)
     unit_cost: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+
     movement_date: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
     user_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
     related_job_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
     movement_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     item: Mapped["InventoryItem"] = relationship("InventoryItem", back_populates="movements")
@@ -451,10 +482,12 @@ class InventoryItemImage(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     item_id: Mapped[int] = mapped_column(ForeignKey("inventory_items.id"), nullable=False, index=True)
+
     image_url: Mapped[str] = mapped_column(String(500), nullable=False)
     position: Mapped[int] = mapped_column(SmallInteger, default=0, nullable=False)
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     alt_text: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     item: Mapped["InventoryItem"] = relationship("InventoryItem", back_populates="images")
@@ -463,7 +496,7 @@ class InventoryItemImage(Base):
 
 
 # ======================================================
-# INVENTORY (LEGACY - SKU)
+# INVENTORY (LEGACY - SKU) para endpoints viejos /inventory/items
 # ======================================================
 class LegacyInventoryItem(Base):
     __tablename__ = "inventory_items_legacy"
@@ -473,8 +506,10 @@ class LegacyInventoryItem(Base):
     name: Mapped[str] = mapped_column(String(180), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     unit: Mapped[str] = mapped_column(String(20), default="EA", nullable=False)
+
     cost: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
     price: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -489,9 +524,34 @@ class LegacyStockMovement(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     item_id: Mapped[int] = mapped_column(ForeignKey("inventory_items_legacy.id"), nullable=False, index=True)
+
     qty: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     reason: Mapped[str] = mapped_column(String(30), default="ADJUST", nullable=False)
     note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     item: Mapped["LegacyInventoryItem"] = relationship("LegacyInventoryItem", back_populates="movements")
+
+# ======================================================
+# WORK ORDER LABOR
+# ======================================================
+class WorkOrderLabor(Base):
+    __tablename__ = "work_order_labors"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    work_order_id: Mapped[int] = mapped_column(
+        ForeignKey("work_orders.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+
+    description: Mapped[str] = mapped_column(String(255), nullable=False)
+    hours: Mapped[Decimal] = mapped_column(Numeric(12,2), default=Decimal("1.00"), nullable=False)
+    rate: Mapped[Decimal] = mapped_column(Numeric(12,2), default=Decimal("0.00"), nullable=False)
+    line_total: Mapped[Decimal] = mapped_column(Numeric(12,2), default=Decimal("0.00"), nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    work_order: Mapped["WorkOrder"] = relationship("WorkOrder", back_populates="labors")

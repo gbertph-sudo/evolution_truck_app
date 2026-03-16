@@ -29,16 +29,44 @@
     .pill.on { background:#d9f7e3; color:#0d7a3a; }
     .pill.off { background:#fde2e2; color:#8a1c1c; }
   </style>
+  <link rel="stylesheet" href="/static/et-layout.css?v=3">
 </head>
 
 <body>
-  <header>
-    <div>Evolution Truck — Users</div>
-    <div style="display:flex; gap:10px;">
-      <button class="secondary" id="goDashboardBtn" type="button">Dashboard</button>
-      <button class="secondary" id="logoutBtn" type="button">Logout</button>
+  
+  <section class="et-module-hero">
+    <div class="et-module-hero-inner">
+      <div class="et-module-hero-top">
+        <div class="et-brand-block">
+          <div class="et-brand-logo">ET</div>
+          <div>
+            <div class="et-brand-kicker">Admin Workspace</div>
+            <h1 class="et-brand-title">Users</h1>
+            <p class="et-brand-subtitle">Create and manage users with a consistent professional layout.</p>
+          </div>
+        </div>
+
+        <div class="et-user-panel">
+          <div class="et-user-row">
+            <div><div class="et-user-meta-label">Module</div><div class="et-user-meta-value">Users</div></div>
+            <div><div class="et-user-meta-label">System</div><div class="et-user-meta-value">Online</div></div>
+          </div>
+          <div class="et-user-row">
+            <div><div class="et-user-meta-label">Area</div><div class="et-user-meta-value">Admin Workspace</div></div>
+            <div><div class="et-user-meta-label">App</div><div class="et-user-meta-value">Evolution Truck</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="et-module-actions">
+        <div class="et-breadcrumb"><a href="/dashboard.html">Dashboard</a> / <span>Users</span></div>
+        <div class="et-header-buttons">
+          <button class="et-btn et-btn-secondary" type="button" onclick="window.location.href='/dashboard.html'">Dashboard</button>
+          <button class="et-btn et-btn-secondary" type="button" id="moduleLogoutBtn">Logout</button>
+        </div>
+      </div>
     </div>
-  </header>
+  </section>
+
 
   <div class="wrap">
     <div class="card">
@@ -128,5 +156,20 @@
 
   <!-- IMPORTANTE: sube este número cuando cambies users.js para evitar cache -->
   <script src="/static/users.js?v=301"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+  const btn = document.getElementById("moduleLogoutBtn");
+  if (btn) {
+    btn.addEventListener("click", function(){
+      ["access_token","token","token_type","role_name","role","username","full_name","jwt"].forEach(k => {
+        try { localStorage.removeItem(k); sessionStorage.removeItem(k); } catch(e) {}
+      });
+      window.location.href = "/static/index.html";
+    });
+  }
+});
+</script>
+
 </body>
 </html>

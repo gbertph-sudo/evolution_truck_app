@@ -721,6 +721,9 @@ def create_invoice_from_work_order(
     inv.tax = _q2(inv.subtotal * Decimal("0.07"))
     inv.total = _q2(inv.subtotal + inv.tax)
 
+    # close work order automatically when invoice is created
+    wo.status = "DONE"
+
     db.commit()
     return _load_work_order(db, work_order_id)
 
@@ -756,7 +759,7 @@ def work_order_pdf(
     right = width - 16
     top = height - 16
 
-    HEADER_H_FIRST = 168
+    HEADER_H_FIRST = 198
     HEADER_H_CONT = 34
     HEADER_GAP = 10
     CONT_TABLE_TOP_GAP = 42
@@ -809,7 +812,11 @@ def work_order_pdf(
 
         # Left info block
         box(left, y, left_w, top_h)
-        txt(left + 6, y - 14, "PLEASE READ CAREFULLY. CHECK ONE OF THE STATEMENTS BELOW, AND SIGN:", "Helvetica-Bold", 7)
+        wrapped(
+            left + 6, y - 12,
+            "PLEASE READ CAREFULLY. CHECK ONE OF THE STATEMENTS BELOW, AND SIGN:",
+            52, leading=9, font="Helvetica-Bold", size=7, max_lines=2
+        )
         legal_lines = [
             "I UNDERSTAND THAT, UNDER STATE LAW, AN ESTIMATE TO A WRITTEN",
             "LIMITED TO A WRITTEN ESTIMATE.",
@@ -819,15 +826,15 @@ def work_order_pdf(
             "[] I REQUEST AN ORAL APPROVAL.",
             "[] I REQUEST A WRITTEN ESTIMATE.",
         ]
-        yy = y - 28
+        yy = y - 36
         for line in legal_lines:
             txt(left + 6, yy, line, "Helvetica", 6.8)
             yy -= 10
 
         label_x = left + 8
         value_x = left + 92
-        line_y = y - 104
-        row_gap = 13
+        line_y = y - 106
+        row_gap = 12
         data_pairs = [
             ("SIGNED:", ""),
             ("Phone:", wo.customer.phone if wo.customer and wo.customer.phone else ""),
@@ -848,25 +855,29 @@ def work_order_pdf(
         logo_path_final = (logo_path or LOGO_PATH_DEFAULT).strip()
         if logo_path_final and os.path.exists(logo_path_final):
             try:
-                c.drawImage(logo_path_final, cx + 72, y - 74, width=96, height=56, mask="auto")
+                c.drawImage(logo_path_final, cx + 72, y - 82, width=96, height=56, mask="auto")
             except Exception:
                 pass
-        txt(cx + center_w/2 - 70, y - 86, company_name, "Helvetica-Bold", 13)
-        txt(cx + center_w/2 - 78, y - 100, company_addr_1, "Helvetica", 7.5)
-        txt(cx + center_w/2 - 96, y - 112, company_addr_2, "Helvetica", 7.5)
-        txt(cx + center_w/2 - 62, y - 124, company_phone, "Helvetica", 7.5)
+        txt(cx + center_w/2 - 70, y - 94, company_name, "Helvetica-Bold", 13)
+        txt(cx + center_w/2 - 78, y - 108, company_addr_1, "Helvetica", 7.5)
+        txt(cx + center_w/2 - 96, y - 120, company_addr_2, "Helvetica", 7.5)
+        txt(cx + center_w/2 - 62, y - 132, company_phone, "Helvetica", 7.5)
+
+        vin_last8 = "-"
+        if wo.vehicle and wo.vehicle.vin:
+            vin_last8 = str(wo.vehicle.vin)[-8:]
 
         details = [
             ("Year:", str(wo.vehicle.year) if wo.vehicle and wo.vehicle.year else "-"),
             ("Make:", wo.vehicle.make if wo.vehicle and wo.vehicle.make else "-"),
             ("Model:", wo.vehicle.model if wo.vehicle and wo.vehicle.model else "-"),
-            ("VIN#:", wo.vehicle.vin if wo.vehicle and wo.vehicle.vin else "-"),
+            ("VIN#:", vin_last8),
             ("Unit:", wo.vehicle.unit_number if wo.vehicle and wo.vehicle.unit_number else "-"),
             ("Miles out:", ""),
         ]
         lx1 = cx + 8
         lx2 = cx + 132
-        dy = y - 142
+        dy = y - 146
         for idx, (k, v) in enumerate(details[:3]):
             txt(lx1, dy - idx * 11, k, "Helvetica-Bold", 7)
             txt(lx1 + 36, dy - idx * 11, v, "Helvetica", 7)
@@ -877,28 +888,52 @@ def work_order_pdf(
         # Right estimate block
         rx = cx + center_w
         box(rx, y, right_w, top_h)
-        est_lines = [
+
+        label_x = rx + 8
+        value_x = rx + 118
+        line_h = 10
+        yy = y - 16
+
+        simple_rows = [
             ("ESTIMATE/DIAGNOSTIC", ""),
             ("FEE:", ""),
             ("OR/HOURLY on parts and labor", ""),
             ("ESTIMATE", ""),
             ("Proposed Complete Date:", ""),
             ("Warranty:", "No"),
-            ("Customer Complaint/Problem:", (wo.description or "")[:28]),
+        ]
+        for k, v in simple_rows:
+            if v:
+                txt(label_x, yy, k, "Helvetica-Bold", 6.7)
+                txt(value_x, yy, v, "Helvetica", 6.7)
+            else:
+                txt(label_x, yy, k, "Helvetica", 6.7)
+            yy -= line_h
+
+        txt(label_x, yy, "Customer Complaint/Problem:", "Helvetica-Bold", 6.7)
+        yy -= 9
+        complaint = (wo.description or "").strip()
+        complaint_lines = textwrap.wrap(complaint, width=22)[:3] or [""]
+        for line in complaint_lines:
+            txt(label_x + 6, yy, line, "Helvetica", 6.6)
+            yy -= 8
+
+        bottom_rows = [
             ("Labor rate based on:", ""),
             ("DOT rate:", ""),
             ("HOURLY RATE $50.00", ""),
             ("PER DAY MAY BE APPLIED", ""),
             ("NOT CLEAR OF CHARGES", ""),
         ]
-        yy = y - 14
-        for k, v in est_lines:
+        for k, v in bottom_rows:
+            if yy < y - top_h + 10:
+                break
             if v:
-                txt(rx + 8, yy, k, "Helvetica-Bold", 7)
-                txt(rx + 112, yy, v, "Helvetica", 7)
+                txt(label_x, yy, k, "Helvetica-Bold", 6.5)
+                txt(value_x, yy, v, "Helvetica", 6.5)
             else:
-                txt(rx + 8, yy, k, "Helvetica", 7)
-            yy -= 11
+                txt(label_x, yy, k, "Helvetica", 6.5)
+            yy -= 9
 
         return top - top_h - HEADER_GAP
 

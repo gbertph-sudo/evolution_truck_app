@@ -5,189 +5,819 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Dashboard - Evolution Truck</title>
-
-  <!-- Estilos (mismos del inventory para que se vea igual) -->
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; background: #f4f6f8; }
+    :root{
+      --bg:#f4f6f8;
+      --card:#ffffff;
+      --text:#111827;
+      --muted:#6b7280;
+      --border:#e5e7eb;
+      --shadow:0 10px 30px rgba(0,0,0,.08);
+      --red:#d61f2c;
+      --red2:#ff3b30;
+      --black:#101214;
+      --green:#16803c;
+      --amber:#a16207;
+      --blue:#1d4ed8;
+    }
 
-    header {
-      background:#111;
+    *{ box-sizing:border-box; }
+    body{
+      font-family: Arial, sans-serif;
+      margin:0;
+      background:linear-gradient(180deg,#eef1f4 0%, #f6f7f9 100%);
+      color:var(--text);
+    }
+
+    .hero{
+      background:
+        radial-gradient(circle at top right, rgba(255,59,48,.20), transparent 22%),
+        linear-gradient(135deg, #111 0%, #1a1a1a 55%, #202020 100%);
       color:#fff;
-      padding:14px 18px;
+      padding:22px 20px 28px;
+      border-bottom:4px solid var(--red);
+      box-shadow:0 6px 24px rgba(0,0,0,.18);
+    }
+
+    .hero-inner{
+      max-width:1280px;
+      margin:0 auto;
+    }
+
+    .hero-top{
       display:flex;
       justify-content:space-between;
+      align-items:flex-start;
+      gap:20px;
+      flex-wrap:wrap;
+    }
+
+    .brand-block{
+      display:flex;
+      gap:16px;
       align-items:center;
     }
-    header a { color:#fff; text-decoration:none; }
 
-    .wrap { max-width: 1100px; margin: 20px auto; padding: 0 14px; }
-
-    .card {
-      background:#fff;
-      border-radius:10px;
-      padding:16px;
-      box-shadow:0 2px 10px rgba(0,0,0,.06);
-      margin-bottom:14px;
-    }
-
-    .muted { color:#666; font-size:13px; }
-
-    .grid {
+    .brand-logo{
+      width:64px;
+      height:64px;
+      border-radius:18px;
       display:grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap:14px;
+      place-items:center;
+      font-size:26px;
+      font-weight:900;
+      background:linear-gradient(135deg, var(--red), var(--red2));
+      box-shadow:0 12px 24px rgba(214,31,44,.32);
     }
 
-    /* --- Cards de módulos (Inventory, Users, etc.) --- */
-    .card.tile{
+    .brand-kicker{
+      display:inline-block;
+      font-size:12px;
+      font-weight:700;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      color:#ffb3b3;
+      margin-bottom:6px;
+    }
+
+    .brand-title{
+      margin:0;
+      font-size:34px;
+      line-height:1.05;
+      font-weight:900;
+    }
+
+    .brand-subtitle{
+      margin:8px 0 0;
+      color:#d1d5db;
+      max-width:760px;
+      font-size:15px;
+    }
+
+    .user-panel{
+      min-width:320px;
+      background:rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:18px;
+      padding:16px;
+      backdrop-filter: blur(4px);
+    }
+
+    .user-row{
+      display:flex;
+      justify-content:space-between;
+      gap:18px;
+      margin-bottom:8px;
+      flex-wrap:wrap;
+    }
+
+    .user-meta-label{
+      color:#c7cad1;
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      margin-bottom:3px;
+    }
+
+    .user-meta-value{
+      font-size:15px;
+      font-weight:700;
+    }
+
+    .hero-actions{
+      display:flex;
+      justify-content:space-between;
+      gap:14px;
+      align-items:center;
+      margin-top:20px;
+      flex-wrap:wrap;
+    }
+
+    .search-wrap{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex:1;
+      min-width:280px;
+      background:#fff;
+      padding:0 14px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.08);
+      box-shadow:inset 0 0 0 1px rgba(0,0,0,.03);
+    }
+
+    .search-wrap input{
+      flex:1;
+      border:none;
+      outline:none;
+      background:transparent;
+      min-height:46px;
+      font-size:15px;
+    }
+
+    .btn{
+      min-height:44px;
+      border:none;
+      border-radius:12px;
+      padding:0 16px;
+      cursor:pointer;
+      font-weight:700;
+      transition:.18s ease;
+    }
+
+    .btn-primary{
+      background:linear-gradient(90deg,var(--red),var(--red2));
+      color:#fff;
+      box-shadow:0 8px 18px rgba(214,31,44,.28);
+    }
+    .btn-primary:hover{ transform:translateY(-1px); }
+
+    .btn-secondary{
+      background:transparent;
+      color:#fff;
+      border:1px solid rgba(255,255,255,.22);
+    }
+
+    .wrap{
+      max-width:1280px;
+      margin:22px auto 40px;
+      padding:0 16px;
+    }
+
+    .stats-grid{
+      display:grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap:14px;
+      margin-bottom:22px;
+    }
+
+    .stat-card{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:18px;
+      padding:18px;
+      box-shadow:var(--shadow);
+      position:relative;
+      overflow:hidden;
+    }
+
+    .stat-card::before{
+      content:"";
+      position:absolute;
+      top:0; left:0; right:0;
+      height:4px;
+      background:linear-gradient(90deg, var(--red), var(--red2));
+    }
+
+    .stat-label{
+      color:var(--muted);
+      font-size:13px;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:.06em;
+    }
+
+    .stat-value{
+      font-size:34px;
+      font-weight:900;
+      margin-top:8px;
+      line-height:1;
+    }
+
+    .stat-note{
+      margin-top:8px;
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    .panel{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:20px;
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      margin-bottom:18px;
+    }
+
+    .panel-head{
+      padding:18px 18px 0;
+    }
+
+    .panel-title{
+      margin:0;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      font-size:24px;
+      font-weight:900;
+    }
+
+    .panel-subtitle{
+      color:var(--muted);
+      margin:8px 0 0;
+      font-size:14px;
+    }
+
+    .module-grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(240px,1fr));
+      gap:14px;
+      padding:18px;
+    }
+
+    .module-card{
+      position:relative;
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:18px;
+      padding:16px;
+      box-shadow:0 6px 18px rgba(0,0,0,.05);
       display:flex;
       flex-direction:column;
+      gap:10px;
+      min-height:174px;
+      transition:.18s ease;
+    }
+
+    .module-card:hover{
+      transform:translateY(-2px);
+      box-shadow:0 14px 26px rgba(0,0,0,.08);
+    }
+
+    .module-card::after{
+      content:"";
+      position:absolute;
+      left:0;
+      top:0;
+      bottom:0;
+      width:5px;
+      border-radius:18px 0 0 18px;
+      background:var(--accent, linear-gradient(180deg,var(--red),var(--red2)));
+    }
+
+    .module-top{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:10px;
+    }
+
+    .module-icon{
+      font-size:28px;
+    }
+
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:5px 10px;
+      border-radius:999px;
+      font-size:11px;
+      font-weight:800;
+      letter-spacing:.04em;
+      text-transform:uppercase;
+      border:1px solid transparent;
+      white-space:nowrap;
+    }
+
+    .badge-active{
+      background:#ecfdf3;
+      color:var(--green);
+      border-color:#bbf7d0;
+    }
+
+    .badge-placeholder{
+      background:#fff7ed;
+      color:var(--amber);
+      border-color:#fed7aa;
+    }
+
+    .badge-admin{
+      background:#eff6ff;
+      color:var(--blue);
+      border-color:#bfdbfe;
+    }
+
+    .module-card h3{
+      margin:0;
+      font-size:20px;
+    }
+
+    .module-desc{
+      color:var(--muted);
+      font-size:14px;
+      line-height:1.4;
+      flex:1;
+    }
+
+    .module-tags{
+      display:flex;
+      flex-wrap:wrap;
       gap:8px;
-      min-height:100px;
     }
-    .card.tile h3 { margin:0; }
 
-    /* empuja el botón abajo */
-    .spacer { flex:1; }
+    .module-tag{
+      font-size:11px;
+      font-weight:700;
+      color:#4b5563;
+      background:#f3f4f6;
+      padding:6px 9px;
+      border-radius:999px;
+    }
 
-    button{
-      padding:10px 14px;
-      border:none;
-      border-radius:8px;
-      cursor:pointer;
-      background:#d61f2c;
+    .module-actions{
+      display:flex;
+      gap:10px;
+      margin-top:auto;
+    }
+
+    .module-actions .btn{
+      flex:1;
+    }
+
+    .btn-open{
+      background:linear-gradient(90deg,var(--red),var(--red2));
       color:#fff;
-      font-weight:600;
-    }
-    button:hover{ background:#ff3b30; }
-
-    /* Botón secundario */
-    button.secondary{
-      background: transparent;
-      color: #d61f2c;
-      border: 1px solid #d61f2c;
     }
 
-    button[disabled]{
-      opacity:.7;
-      cursor:not-allowed;
+    .btn-ghost{
+      background:#fff;
+      color:#111;
+      border:1px solid var(--border);
     }
 
-    #msg { margin-top:10px; font-weight:600; }
+    #msg{
+      margin-top:10px;
+      font-weight:700;
+    }
 
-    /* Raya roja */
-    .card h3, .card h2 { position: relative; }
-    .card h3::after, .card h2::after{
-      content: "";
-      display: block;
-      width: 44px;
-      height: 3px;
-      margin-top: 8px;
-      border-radius: 999px;
-      background: linear-gradient(90deg, #d61f2c, #ff3b30);
+    .hidden-by-search{
+      display:none !important;
+    }
+
+    @media (max-width: 980px){
+      .stats-grid{ grid-template-columns:repeat(2, minmax(0,1fr)); }
+    }
+    @media (max-width: 680px){
+      .brand-title{ font-size:28px; }
+      .stats-grid{ grid-template-columns:1fr; }
+      .module-grid{ grid-template-columns:1fr; }
+      .user-panel{ width:100%; min-width:auto; }
     }
   </style>
 </head>
-
 <body>
-  <!-- Header -->
-  <header>
-    <div>📊 Dashboard</div>
-    <div>
-      <button class="secondary" id="logoutBtn">Logout</button>
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-top">
+        <div class="brand-block">
+          <div class="brand-logo">ET</div>
+          <div>
+            <div class="brand-kicker">Shop Command Center</div>
+            <h1 class="brand-title">Evolution Truck Dashboard</h1>
+            <p class="brand-subtitle">
+              Central control for operations, sales, parts, billing and business management.
+            </p>
+          </div>
+        </div>
+
+        <div class="user-panel">
+          <div class="user-row">
+            <div>
+              <div class="user-meta-label">User</div>
+              <div class="user-meta-value" id="userNameValue">Signed in</div>
+            </div>
+            <div>
+              <div class="user-meta-label">Role</div>
+              <div class="user-meta-value" id="roleNameValue">-</div>
+            </div>
+          </div>
+
+          <div class="user-row">
+            <div>
+              <div class="user-meta-label">Today</div>
+              <div class="user-meta-value" id="todayValue">-</div>
+            </div>
+            <div>
+              <div class="user-meta-label">System</div>
+              <div class="user-meta-value">Online</div>
+            </div>
+          </div>
+
+          <div id="msg"></div>
+        </div>
+      </div>
+
+      <div class="hero-actions">
+        <div class="search-wrap">
+          <span>🔎</span>
+          <input id="moduleSearch" type="text" placeholder="Search modules, like invoices, vehicles, reports..." />
+        </div>
+
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn btn-secondary" id="clearSearchBtn">Clear</button>
+          <button class="btn btn-secondary" id="logoutBtn">Logout</button>
+        </div>
+      </div>
     </div>
-  </header>
+  </section>
 
   <div class="wrap">
-
-    <!-- Bienvenida / estado -->
-    <div class="card">
-      <h2 style="margin:0;">Welcome</h2>
-      <div class="muted">You are signed in. Choose a module to continue.</div>
-      <div class="msg" id="msg"></div>
-    </div>
-
-    <!-- Módulos -->
-    <div class="grid">
-
-      <!-- Inventory -->
-      <div class="card tile">
-        <h3>📦 Inventory</h3>
-        <div class="muted">Create, update and track stock levels.</div>
-        <div class="spacer"></div>
-        <button id="goInventoryBtn">Open Inventory</button>
+    <section class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Open Work Orders</div>
+        <div class="stat-value" id="kpiWorkOrders">--</div>
+        <div class="stat-note">Live count from work orders when available.</div>
       </div>
-
-      <!-- Users (ADMIN ONLY) -->
-      <div class="card tile" id="createUsersCard" style="display:none;">
-        <h3>👤 Users</h3>
-        <div class="muted">Create and manage system users.</div>
-        <div class="spacer"></div>
-        <button id="goUsersBtn">Manage Users</button>
+      <div class="stat-card">
+        <div class="stat-label">Draft Invoices</div>
+        <div class="stat-value" id="kpiInvoices">--</div>
+        <div class="stat-note">Live count from invoices when available.</div>
       </div>
-
-      <!-- Customers ✅ (ya activo) -->
-      <div class="card tile">
-        <h3>👥 Customers</h3>
-        <div class="muted">Create customers and assign companies.</div>
-        <div class="spacer"></div>
-        <button id="goCustomersBtn">Open Customers</button>
+      <div class="stat-card">
+        <div class="stat-label">Low Stock Items</div>
+        <div class="stat-value" id="kpiInventory">--</div>
+        <div class="stat-note">Placeholder metric until low stock rules are added.</div>
       </div>
-
-      <!-- ✅ Companies (NUEVO) -->
-      <div class="card tile">
-        <h3>🏢 Companies</h3>
-        <div class="muted">Create companies and link them to customers.</div>
-        <div class="spacer"></div>
-        <button id="goCompaniesBtn">Open Companies</button>
+      <div class="stat-card">
+        <div class="stat-label">Active Modules</div>
+        <div class="stat-value" id="kpiModules">23</div>
+        <div class="stat-note">Navigation-ready screens across the app.</div>
       </div>
+    </section>
 
-      <!-- Vehicles ✅ (ya activo) -->
-      <div class="card tile">
-        <h3>🚚 Vehicles</h3>
-        <div class="muted">Add vehicles and link them to customers.</div>
-        <div class="spacer"></div>
-        <button id="goVehiclesBtn">Open Vehicles</button>
+    <section class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">🛠️ Shop Operations</h2>
+        <p class="panel-subtitle">Day-to-day workflow for the front desk, technicians and vehicle intake.</p>
       </div>
+      <div class="module-grid">
+        <article class="module-card module-item" data-search="work orders repair jobs pdf print service" style="--accent:linear-gradient(180deg,#d61f2c,#ff3b30);">
+          <div class="module-top">
+            <div class="module-icon">🛠️</div>
+            <span class="badge badge-active">Active</span>
+          </div>
+          <h3>Work Orders</h3>
+          <div class="module-desc">Create, track and print work orders with parts, labor and PDF output.</div>
+          <div class="module-tags"><span class="module-tag">Operations</span><span class="module-tag">PDF</span></div>
+          <div class="module-actions">
+            <button class="btn btn-open" id="goWorkOrdersBtn">Open</button>
+          </div>
+        </article>
 
-      <!-- Work Orders ✅ -->
-      <div class="card tile">
-        <h3>🛠️ Work Orders</h3>
-        <div class="muted">Create and manage shop work orders (PDF + print).</div>
-        <div class="spacer"></div>
-        <button id="goWorkOrdersBtn">Open Work Orders</button>
+        <article class="module-card module-item" data-search="vehicles truck vin unit fleet" style="--accent:linear-gradient(180deg,#2563eb,#60a5fa);">
+          <div class="module-top">
+            <div class="module-icon">🚚</div>
+            <span class="badge badge-active">Active</span>
+          </div>
+          <h3>Vehicles</h3>
+          <div class="module-desc">Add units, VIN details and link each vehicle to its customer account.</div>
+          <div class="module-tags"><span class="module-tag">Fleet</span><span class="module-tag">Customer Link</span></div>
+          <div class="module-actions">
+            <button class="btn btn-open" id="goVehiclesBtn">Open</button>
+          </div>
+        </article>
+
+        <article class="module-card module-item" data-search="customers clients accounts contact" style="--accent:linear-gradient(180deg,#059669,#34d399);">
+          <div class="module-top">
+            <div class="module-icon">👥</div>
+            <span class="badge badge-active">Active</span>
+          </div>
+          <h3>Customers</h3>
+          <div class="module-desc">Manage customer records, contacts and company assignments.</div>
+          <div class="module-tags"><span class="module-tag">CRM</span><span class="module-tag">Shop</span></div>
+          <div class="module-actions">
+            <button class="btn btn-open" id="goCustomersBtn">Open</button>
+          </div>
+        </article>
+
+        <article class="module-card module-item" data-search="companies business accounts billing" style="--accent:linear-gradient(180deg,#7c3aed,#a78bfa);">
+          <div class="module-top">
+            <div class="module-icon">🏢</div>
+            <span class="badge badge-active">Active</span>
+          </div>
+          <h3>Companies</h3>
+          <div class="module-desc">Create business accounts and link them to customers and vehicles.</div>
+          <div class="module-tags"><span class="module-tag">Accounts</span><span class="module-tag">Billing</span></div>
+          <div class="module-actions">
+            <button class="btn btn-open" id="goCompaniesBtn">Open</button>
+          </div>
+        </article>
+
+        <article class="module-card module-item" data-search="history service repairs previous jobs timeline" style="--accent:linear-gradient(180deg,#0f766e,#2dd4bf);">
+          <div class="module-top">
+            <div class="module-icon">📚</div>
+            <span class="badge badge-placeholder">Ready</span>
+          </div>
+          <h3>Service History</h3>
+          <div class="module-desc">Review previous repairs, recurring failures and vehicle maintenance history.</div>
+          <div class="module-tags"><span class="module-tag">History</span><span class="module-tag">Diagnostics</span></div>
+          <div class="module-actions">
+            <button class="btn btn-open" id="goServiceHistoryBtn">Open</button>
+          </div>
+        </article>
+
+        <article class="module-card module-item" data-search="appointments calendar schedule visits time" style="--accent:linear-gradient(180deg,#c2410c,#fb923c);">
+          <div class="module-top">
+            <div class="module-icon">📅</div>
+            <span class="badge badge-placeholder">Ready</span>
+          </div>
+          <h3>Appointments</h3>
+          <div class="module-desc">Plan truck visits, reserve bays and organize daily service capacity.</div>
+          <div class="module-tags"><span class="module-tag">Calendar</span><span class="module-tag">Planning</span></div>
+          <div class="module-actions">
+            <button class="btn btn-open" id="goAppointmentsBtn">Open</button>
+          </div>
+        </article>
       </div>
+    </section>
 
-      <!-- Invoices -->
-      <div class="card tile" id="tileInvoices" style="cursor:pointer;">
-      <h3>🧾 Invoices</h3>
-      <div class="muted">Review invoices, payment method, totals and PDF.</div>
-      <div class="spacer"></div>
-      <button id="btnInvoices">Open</button>
+    <section class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">🧾 Sales & Parts</h2>
+        <p class="panel-subtitle">Inventory, tickets, quoting and billing tools used at the counter.</p>
       </div>
+      <div class="module-grid">
+        <article class="module-card module-item" data-search="inventory stock parts items quantity" style="--accent:linear-gradient(180deg,#d61f2c,#ff3b30);">
+          <div class="module-top">
+            <div class="module-icon">📦</div>
+            <span class="badge badge-active">Active</span>
+          </div>
+          <h3>Inventory</h3>
+          <div class="module-desc">Track stock levels, part pricing and inventory movements.</div>
+          <div class="module-tags"><span class="module-tag">Stock</span><span class="module-tag">Parts</span></div>
+          <div class="module-actions">
+            <button class="btn btn-open" id="goInventoryBtn">Open</button>
+          </div>
+        </article>
 
-      <!-- El resto de tus tiles los dejo como estaban (Locked) -->
-      <div class="card tile"><h3>🛒 Parts Store (POS)</h3><div class="muted">Sell parts and create tickets.</div><div class="spacer"></div><button disabled>Locked</button></div>
-      <div class="card tile"><h3>📚 Service History</h3><div class="muted">View past repairs by vehicle.</div><div class="spacer"></div><button disabled>Locked</button></div>
-      <div class="card tile"><h3>🏭 Vendors / Suppliers</h3><div class="muted">Manage suppliers and pricing.</div><div class="spacer"></div><button disabled>Locked</button></div>
-      <div class="card tile"><h3>📦 Purchase Orders</h3><div class="muted">Generate purchase orders automatically.</div><div class="spacer"></div><button disabled>Locked</button></div>
-      <div class="card tile"><h3>📝 Estimates / Quotes</h3><div class="muted">Create quotes and convert to invoices.</div><div class="spacer"></div><button disabled>Locked</button></div>
-      <div class="card tile"><h3>💳 Payments</h3><div class="muted">Track cash, card and digital payments.</div><div class="spacer"></div><button disabled>Locked</button></div>
-      <div class="card tile"><h3>📒 Accounting / Ledger</h3><div class="muted">Income, expenses and tax records.</div><div class="spacer"></div><button disabled>Locked</button></div>
-      <div class="card tile"><h3>⏱️ Labor / Time Tracking</h3><div class="muted">Track mechanic hours per job.</div><div class="spacer"></div><button disabled>Locked</button></div>
-      <div class="card tile"><h3>📅 Appointments</h3><div class="muted">Schedule jobs and visits.</div><div class="spacer"></div><button disabled>Locked</button></div>
-      <div class="card tile"><h3>✅ Tasks / Checklist</h3><div class="muted">Daily tasks and job checklists.</div><div class="spacer"></div><button disabled>Locked</button></div>
-      <div class="card tile"><h3>🔁 Warranty / Returns</h3><div class="muted">Manage warranties and returns.</div><div class="spacer"></div><button disabled>Locked</button></div>
-      <div class="card tile"><h3>📊 Reports</h3><div class="muted">Sales and inventory reports.</div><div class="spacer"></div><button disabled>Locked</button></div>
-      <div class="card tile"><h3>📈 Analytics</h3><div class="muted">KPIs and performance metrics.</div><div class="spacer"></div><button disabled>Locked</button></div>
-      <div class="card tile"><h3>🔐 Roles & Permissions</h3><div class="muted">Define access per role.</div><div class="spacer"></div><button disabled>Locked</button></div>
-      <div class="card tile"><h3>⚙️ Settings</h3><div class="muted">System and shop configuration.</div><div class="spacer"></div><button disabled>Locked</button></div>
-      <div class="card tile"><h3>🧾 Audit Log</h3><div class="muted">Track user actions.</div><div class="spacer"></div><button disabled>Locked</button></div>
+        <article class="module-card module-item" data-search="pos point of sale counter ticket parts store" style="--accent:linear-gradient(180deg,#7c2d12,#fb7185);">
+          <div class="module-top">
+            <div class="module-icon">🛒</div>
+            <span class="badge badge-active">Active</span>
+          </div>
+          <h3>Parts Store (POS)</h3>
+          <div class="module-desc">Sell over-the-counter parts and create fast tickets from inventory.</div>
+          <div class="module-tags"><span class="module-tag">Counter Sale</span><span class="module-tag">Priority</span></div>
+          <div class="module-actions">
+            <button class="btn btn-open" id="goPosBtn">Open</button>
+          </div>
+        </article>
 
-    </div>
+        <article class="module-card module-item" data-search="invoices billing totals pdf payments" style="--accent:linear-gradient(180deg,#1d4ed8,#60a5fa);">
+          <div class="module-top">
+            <div class="module-icon">🧾</div>
+            <span class="badge badge-active">Active</span>
+          </div>
+          <h3>Invoices</h3>
+          <div class="module-desc">Review invoice totals, payment methods and printable customer billing.</div>
+          <div class="module-tags"><span class="module-tag">Billing</span><span class="module-tag">PDF</span></div>
+          <div class="module-actions">
+            <button class="btn btn-open" id="btnInvoices">Open</button>
+          </div>
+        </article>
+
+        <article class="module-card module-item" data-search="quotes estimates prices approval customers" style="--accent:linear-gradient(180deg,#a16207,#f59e0b);">
+          <div class="module-top">
+            <div class="module-icon">📝</div>
+            <span class="badge badge-placeholder">Ready</span>
+          </div>
+          <h3>Estimates / Quotes</h3>
+          <div class="module-desc">Prepare quotes before work begins and later convert them to invoices.</div>
+          <div class="module-tags"><span class="module-tag">Sales</span><span class="module-tag">Approval</span></div>
+          <div class="module-actions">
+            <button class="btn btn-open" id="goQuotesBtn">Open</button>
+          </div>
+        </article>
+
+        <article class="module-card module-item" data-search="payments cash card zelle check method" style="--accent:linear-gradient(180deg,#059669,#34d399);">
+          <div class="module-top">
+            <div class="module-icon">💳</div>
+            <span class="badge badge-placeholder">Ready</span>
+          </div>
+          <h3>Payments</h3>
+          <div class="module-desc">Track cash, card and digital payment records across invoices and POS tickets.</div>
+          <div class="module-tags"><span class="module-tag">Cash Flow</span><span class="module-tag">Collections</span></div>
+          <div class="module-actions">
+            <button class="btn btn-open" id="goPaymentsBtn">Open</button>
+          </div>
+        </article>
+
+        <article class="module-card module-item" data-search="vendors suppliers purchase pricing brands" style="--accent:linear-gradient(180deg,#6d28d9,#a78bfa);">
+          <div class="module-top">
+            <div class="module-icon">🏭</div>
+            <span class="badge badge-placeholder">Ready</span>
+          </div>
+          <h3>Vendors / Suppliers</h3>
+          <div class="module-desc">Store supplier contacts, brand references and purchasing information.</div>
+          <div class="module-tags"><span class="module-tag">Supply Chain</span><span class="module-tag">Pricing</span></div>
+          <div class="module-actions">
+            <button class="btn btn-open" id="goVendorsBtn">Open</button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">📊 Business Control</h2>
+        <p class="panel-subtitle">Financial, operational and purchasing visibility for shop growth.</p>
+      </div>
+      <div class="module-grid">
+        <article class="module-card module-item" data-search="purchase orders buying restock order suppliers" style="--accent:linear-gradient(180deg,#d61f2c,#ff3b30);">
+          <div class="module-top">
+            <div class="module-icon">📦</div>
+            <span class="badge badge-placeholder">Ready</span>
+          </div>
+          <h3>Purchase Orders</h3>
+          <div class="module-desc">Generate purchasing documents and keep better control over restocking.</div>
+          <div class="module-tags"><span class="module-tag">Restock</span><span class="module-tag">Suppliers</span></div>
+          <div class="module-actions">
+            <button class="btn btn-open" id="goPurchaseOrdersBtn">Open</button>
+          </div>
+        </article>
+
+        <article class="module-card module-item" data-search="accounting ledger expenses income taxes" style="--accent:linear-gradient(180deg,#111827,#4b5563);">
+          <div class="module-top">
+            <div class="module-icon">📒</div>
+            <span class="badge badge-placeholder">Ready</span>
+          </div>
+          <h3>Accounting / Ledger</h3>
+          <div class="module-desc">Centralize shop income, expenses and tax-related records.</div>
+          <div class="module-tags"><span class="module-tag">Finance</span><span class="module-tag">Ledger</span></div>
+          <div class="module-actions">
+            <button class="btn btn-open" id="goAccountingBtn">Open</button>
+          </div>
+        </article>
+
+        <article class="module-card module-item" data-search="labor hours time mechanics jobs rate" style="--accent:linear-gradient(180deg,#b45309,#fbbf24);">
+          <div class="module-top">
+            <div class="module-icon">⏱️</div>
+            <span class="badge badge-placeholder">Ready</span>
+          </div>
+          <h3>Labor / Time Tracking</h3>
+          <div class="module-desc">Track labor entries, mechanic participation and job time visibility.</div>
+          <div class="module-tags"><span class="module-tag">Labor</span><span class="module-tag">Technicians</span></div>
+          <div class="module-actions">
+            <button class="btn btn-open" id="goLaborTrackingBtn">Open</button>
+          </div>
+        </article>
+
+        <article class="module-card module-item" data-search="tasks checklist daily internal jobs reminders" style="--accent:linear-gradient(180deg,#0f766e,#2dd4bf);">
+          <div class="module-top">
+            <div class="module-icon">✅</div>
+            <span class="badge badge-placeholder">Ready</span>
+          </div>
+          <h3>Tasks / Checklist</h3>
+          <div class="module-desc">Handle recurring tasks, internal reminders and process checklists.</div>
+          <div class="module-tags"><span class="module-tag">Daily Ops</span><span class="module-tag">Control</span></div>
+          <div class="module-actions">
+            <button class="btn btn-open" id="goTasksBtn">Open</button>
+          </div>
+        </article>
+
+        <article class="module-card module-item" data-search="warranty returns cores claims defective" style="--accent:linear-gradient(180deg,#be123c,#fb7185);">
+          <div class="module-top">
+            <div class="module-icon">🔁</div>
+            <span class="badge badge-placeholder">Ready</span>
+          </div>
+          <h3>Warranty / Returns</h3>
+          <div class="module-desc">Track returned parts, claims, cores and warranty replacement flow.</div>
+          <div class="module-tags"><span class="module-tag">Claims</span><span class="module-tag">Returns</span></div>
+          <div class="module-actions">
+            <button class="btn btn-open" id="goWarrantyBtn">Open</button>
+          </div>
+        </article>
+
+        <article class="module-card module-item" data-search="reports analytics metrics sales kpi dashboard" style="--accent:linear-gradient(180deg,#2563eb,#93c5fd);">
+          <div class="module-top">
+            <div class="module-icon">📊</div>
+            <span class="badge badge-placeholder">Ready</span>
+          </div>
+          <h3>Reports</h3>
+          <div class="module-desc">Review operational, sales and inventory reporting in one place.</div>
+          <div class="module-tags"><span class="module-tag">KPIs</span><span class="module-tag">Insights</span></div>
+          <div class="module-actions">
+            <button class="btn btn-open" id="goReportsBtn">Open</button>
+          </div>
+        </article>
+
+        <article class="module-card module-item" data-search="analytics data trends performance business" style="--accent:linear-gradient(180deg,#7c3aed,#c084fc);">
+          <div class="module-top">
+            <div class="module-icon">📈</div>
+            <span class="badge badge-placeholder">Ready</span>
+          </div>
+          <h3>Analytics</h3>
+          <div class="module-desc">Future dashboards for trends, conversion, revenue and performance.</div>
+          <div class="module-tags"><span class="module-tag">Performance</span><span class="module-tag">Growth</span></div>
+          <div class="module-actions">
+            <button class="btn btn-open" id="goAnalyticsBtn">Open</button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">🔐 Admin & Security</h2>
+        <p class="panel-subtitle">Access control, security, settings and system management.</p>
+      </div>
+      <div class="module-grid">
+        <article class="module-card module-item" id="createUsersCard" data-search="users staff employees admin accounts" style="--accent:linear-gradient(180deg,#1d4ed8,#60a5fa); display:none;">
+          <div class="module-top">
+            <div class="module-icon">👤</div>
+            <span class="badge badge-admin">Admin Only</span>
+          </div>
+          <h3>Users</h3>
+          <div class="module-desc">Create, activate and manage system users and their access level.</div>
+          <div class="module-tags"><span class="module-tag">Admin</span><span class="module-tag">Security</span></div>
+          <div class="module-actions">
+            <button class="btn btn-open" id="goUsersBtn">Manage</button>
+          </div>
+        </article>
+
+        <article class="module-card module-item" data-search="roles permissions access security admin" style="--accent:linear-gradient(180deg,#0f172a,#64748b);">
+          <div class="module-top">
+            <div class="module-icon">🔐</div>
+            <span class="badge badge-placeholder">Ready</span>
+          </div>
+          <h3>Roles & Permissions</h3>
+          <div class="module-desc">Define what each role can see, create, edit or approve in the system.</div>
+          <div class="module-tags"><span class="module-tag">Security</span><span class="module-tag">Access</span></div>
+          <div class="module-actions">
+            <button class="btn btn-open" id="goRolesBtn">Open</button>
+          </div>
+        </article>
+
+        <article class="module-card module-item" data-search="settings configuration shop defaults taxes invoice system" style="--accent:linear-gradient(180deg,#d97706,#fbbf24);">
+          <div class="module-top">
+            <div class="module-icon">⚙️</div>
+            <span class="badge badge-placeholder">Ready</span>
+          </div>
+          <h3>Settings</h3>
+          <div class="module-desc">Configure shop defaults, printable data, pricing rules and system options.</div>
+          <div class="module-tags"><span class="module-tag">Config</span><span class="module-tag">System</span></div>
+          <div class="module-actions">
+            <button class="btn btn-open" id="goSettingsBtn">Open</button>
+          </div>
+        </article>
+
+        <article class="module-card module-item" data-search="audit log history user activity changes records" style="--accent:linear-gradient(180deg,#be123c,#fb7185);">
+          <div class="module-top">
+            <div class="module-icon">🧾</div>
+            <span class="badge badge-placeholder">Ready</span>
+          </div>
+          <h3>Audit Log</h3>
+          <div class="module-desc">Track who changed what, when it happened and what was affected.</div>
+          <div class="module-tags"><span class="module-tag">Logs</span><span class="module-tag">Control</span></div>
+          <div class="module-actions">
+            <button class="btn btn-open" id="goAuditLogBtn">Open</button>
+          </div>
+        </article>
+      </div>
+    </section>
   </div>
 
-  <!-- Lógica del dashboard -->
-  <script src="/static/dashboard.js?v=3"></script>
+  <script src="/static/dashboard.js?v=4"></script>
 </body>
 </html>

@@ -186,16 +186,61 @@
       #printArea{ position:absolute; left:0; top:0; width:100%; background:#fff; padding:24px; }
     }
   </style>
+  <link rel="stylesheet" href="/static/et-layout.css?v=1">
 </head>
 
 <body>
-  <header>
-    <div>🛠️ Work Orders</div>
-    <div class="row">
-      <button class="secondary" id="backBtn">← Dashboard</button>
-      <button class="secondary" id="logoutBtn">Logout</button>
+  
+  <section class="et-module-hero">
+    <div class="et-module-hero-inner">
+      <div class="et-module-hero-top">
+        <div class="et-brand-block">
+          <div class="et-brand-logo">ET</div>
+          <div>
+            <div class="et-brand-kicker">Operations Workspace</div>
+            <h1 class="et-brand-title">Work Orders</h1>
+            <p class="et-brand-subtitle">Create orders fast, manage parts, generate invoice and print PDF in one professional workspace.</p>
+          </div>
+        </div>
+
+        <div class="et-user-panel">
+          <div class="et-user-row">
+            <div>
+              <div class="et-user-meta-label">Module</div>
+              <div class="et-user-meta-value">Work Orders</div>
+            </div>
+            <div>
+              <div class="et-user-meta-label">System</div>
+              <div class="et-user-meta-value">Online</div>
+            </div>
+          </div>
+
+          <div class="et-user-row">
+            <div>
+              <div class="et-user-meta-label">Area</div>
+              <div class="et-user-meta-value">Shop Operations</div>
+            </div>
+            <div>
+              <div class="et-user-meta-label">App</div>
+              <div class="et-user-meta-value">Evolution Truck</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="et-module-actions">
+        <div class="et-breadcrumb">
+          <a href="/dashboard.html">Dashboard</a> / <span>Work Orders</span>
+        </div>
+
+        <div class="et-header-buttons">
+          <button class="et-btn et-btn-secondary" id="backBtn">← Dashboard</button>
+          <button class="et-btn et-btn-secondary" id="logoutBtn">Logout</button>
+        </div>
+      </div>
     </div>
-  </header>
+  </section>
+
 
   <div class="wrap">
     <div class="card">
@@ -549,8 +594,9 @@
             <h3>🧾 Invoice</h3>
             <div class="miniRow">
               <button id="createInvoiceBtn">Create / Sync Invoice</button>
+              <button class="secondary dangerClose" id="closeWorkOrderBtn" type="button">Close Work Order</button>
               <div class="spacer"></div>
-              <span class="muted small">Creates invoice once, copies PART + LABOR lines from the work order.</span>
+              <span class="muted small">Creates invoice once, copies PART + LABOR lines from the work order. You can also close the work order manually.</span>
             </div>
 
             <div class="grid2" style="margin-top:12px;">

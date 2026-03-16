@@ -6,7 +6,11 @@ from datetime import datetime, date
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, List, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status, Body
+from pathlib import Path
+from uuid import uuid4
+import shutil
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Body, UploadFile, File, Form
 from sqlalchemy import select, or_
 from sqlalchemy.orm import Session
 
@@ -33,6 +37,32 @@ MOVEMENTS_ADMIN_ROLES = ["ADMIN", "SUPERADMIN"]
 
 # ✅ DB guarda movement_type en minúsculas (por tu CheckConstraint en models.py)
 ALLOWED_MOVEMENT_TYPES = {"in", "out", "adjustment"}
+
+UPLOAD_DIR = Path("static/uploads/inventory")
+ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+ALLOWED_IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+
+
+def _ensure_inventory_upload_dir() -> Path:
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    return UPLOAD_DIR
+
+
+def _delete_local_image_file(image_url: Optional[str]) -> None:
+    if not image_url:
+        return
+    prefix = "/static/uploads/inventory/"
+    if not str(image_url).startswith(prefix):
+        return
+    filename = str(image_url).split(prefix, 1)[-1].strip()
+    if not filename:
+        return
+    file_path = UPLOAD_DIR / filename
+    try:
+        if file_path.exists() and file_path.is_file():
+            file_path.unlink()
+    except Exception:
+        pass
 
 
 # ======================================================
@@ -639,6 +669,66 @@ def list_images(item_id: int, db: Session = Depends(get_db)):
     return list(db.execute(stmt).scalars().all())
 
 
+@router.post("/{item_id}/images/upload", response_model=InventoryItemImageOut, status_code=status.HTTP_201_CREATED)
+def upload_image(
+    item_id: int,
+    file: UploadFile = File(...),
+    is_primary: bool = Form(False),
+    alt_text: Optional[str] = Form(None),
+    position: int = Form(0),
+    db: Session = Depends(get_db),
+):
+    item = db.get(InventoryItem, item_id)
+    if not item or item.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    if not file or not file.filename:
+        raise HTTPException(status_code=422, detail="Image file is required")
+
+    ext = Path(file.filename).suffix.lower()
+    if ext not in ALLOWED_IMAGE_EXTENSIONS:
+        raise HTTPException(status_code=422, detail="Allowed image types: jpg, jpeg, png, webp, gif")
+
+    content_type = (file.content_type or "").lower()
+    if content_type and content_type not in ALLOWED_IMAGE_CONTENT_TYPES:
+        raise HTTPException(status_code=422, detail="Invalid image content type")
+
+    upload_dir = _ensure_inventory_upload_dir()
+    safe_name = f"item_{item_id}_{uuid4().hex}{ext}"
+    saved_path = upload_dir / safe_name
+
+    try:
+        with saved_path.open("wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Could not save image file")
+    finally:
+        file.file.close()
+
+    image_url = f"/static/uploads/inventory/{safe_name}"
+
+    if is_primary:
+        stmt = select(InventoryItemImage).where(InventoryItemImage.item_id == item_id)
+        imgs = list(db.execute(stmt).scalars().all())
+        for im in imgs:
+            im.is_primary = False
+            db.add(im)
+
+    img = InventoryItemImage(
+        item_id=item_id,
+        image_url=image_url,
+        position=position or 0,
+        is_primary=bool(is_primary),
+        alt_text=(alt_text or None),
+        created_at=datetime.utcnow() if hasattr(InventoryItemImage, "created_at") else None,
+    )
+
+    db.add(img)
+    db.commit()
+    db.refresh(img)
+    return img
+
+
 @router.post("/{item_id}/images", response_model=InventoryItemImageOut, status_code=status.HTTP_201_CREATED)
 def add_image(item_id: int, payload: InventoryItemImageCreate, db: Session = Depends(get_db)):
     item = db.get(InventoryItem, item_id)
@@ -674,6 +764,8 @@ def delete_image(image_id: int, db: Session = Depends(get_db)):
     if not img:
         raise HTTPException(status_code=404, detail="Image not found")
 
+    image_url = img.image_url
     db.delete(img)
     db.commit()
+    _delete_local_image_file(image_url)
     return
