@@ -66,7 +66,7 @@ def _load_invoice(db: Session, invoice_id: int) -> Invoice:
         .where(Invoice.id == invoice_id)
         .options(
             joinedload(Invoice.customer),
-            joinedload(Invoice.items),
+            joinedload(Invoice.items).joinedload(InvoiceItem.inventory_item),
         )
     )
     inv = db.execute(stmt).unique().scalars().first()
@@ -146,7 +146,7 @@ def list_invoices(
         .where((Invoice.document_type.is_(None)) | (Invoice.document_type != "QUOTE"))
         .options(
             joinedload(Invoice.customer),
-            joinedload(Invoice.items),
+            joinedload(Invoice.items).joinedload(InvoiceItem.inventory_item),
         )
     )
 
@@ -317,13 +317,23 @@ def invoice_pdf(
     def item_part_no(it: Optional[InvoiceItem]) -> str:
         if not it:
             return "-"
+        inv_item = getattr(it, "inventory_item", None)
+        for val in (
+            getattr(it, "part_code", None),
+            getattr(inv_item, "part_code", None) if inv_item else None,
+            getattr(inv_item, "oem_reference", None) if inv_item else None,
+        ):
+            if val:
+                return str(val)
         for attr in ("part_number", "part_no", "sku", "item_code", "code", "ref_number"):
             val = getattr(it, attr, None)
             if val:
                 return str(val)
+        if getattr(it, "item_type", "").upper() == "LABOR":
+            return "LABOR"
         inv_item_id = getattr(it, "inventory_item_id", None)
         if inv_item_id:
-            return str(inv_item_id)
+            return f"#{inv_item_id}"
         return str(getattr(it, "id", "-"))
 
     def item_desc(it: Optional[InvoiceItem]) -> str:
@@ -562,7 +572,24 @@ def invoice_pdf(
     ]))
     story.append(KeepTogether([bottom_tbl]))
 
-    doc.build(story, onFirstPage=draw_page_number, onLaterPages=draw_page_number)
+    is_quote = (getattr(inv, "document_type", None) or "").upper() == "QUOTE"
+
+    def draw_page(canv, doc):
+        if is_quote:
+            canv.saveState()
+            try:
+                canv.setFillAlpha(0.10)
+            except Exception:
+                pass
+            canv.setFillColor(colors.Color(0.75, 0.75, 0.75))
+            canv.setFont("Helvetica-Bold", 64)
+            canv.translate(letter[0] / 2, letter[1] / 2)
+            canv.rotate(45)
+            canv.drawCentredString(0, 0, "QUOTATION")
+            canv.restoreState()
+        draw_page_number(canv, doc)
+
+    doc.build(story, onFirstPage=draw_page, onLaterPages=draw_page)
 
     buf.seek(0)
     filename = f"{inv.invoice_number or f'INV-{inv.id:06d}'}.pdf"

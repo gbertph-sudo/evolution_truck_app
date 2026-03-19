@@ -71,10 +71,10 @@ def _load_work_order(db: Session, work_order_id: int) -> WorkOrder:
             joinedload(WorkOrder.mechanic),
 
             # ✅ invoice
-            joinedload(WorkOrder.invoice).joinedload(Invoice.items),
+            joinedload(WorkOrder.invoice).joinedload(Invoice.items).joinedload(InvoiceItem.inventory_item),
 
             # ✅ carrito de piezas
-            joinedload(WorkOrder.items),
+            joinedload(WorkOrder.items).joinedload(WorkOrderItem.inventory_item),
             joinedload(WorkOrder.labors),
         )
     )
@@ -146,6 +146,21 @@ def _to_int_qty(qty: Decimal) -> int:
 def _ensure_wo_open(wo: WorkOrder) -> None:
     if wo.status in ("DONE", "CANCELLED"):
         raise HTTPException(status_code=422, detail="This work order is closed/cancelled. Cannot modify items.")
+
+
+def _part_code_for_wo_item(it: Optional[WorkOrderItem]) -> str:
+    if not it:
+        return "-"
+    inv = getattr(it, "inventory_item", None)
+    for val in (
+        getattr(it, "part_code", None),
+        getattr(inv, "part_code", None) if inv else None,
+        getattr(inv, "oem_reference", None) if inv else None,
+    ):
+        if val:
+            return str(val)
+    inv_id = getattr(it, "inventory_item_id", None)
+    return f"#{inv_id}" if inv_id else "-"
 
 
 # -------------------------------
@@ -1118,7 +1133,7 @@ def work_order_pdf(
         else:
             for it in page_parts:
                 box(layout["parts_x"], row_y_parts, layout["parts_w"], layout["row_h"])
-                txt(layout["parts_x"] + 6, row_y_parts - 11, str(it.inventory_item_id or ""), "Helvetica", 7)
+                txt(layout["parts_x"] + 6, row_y_parts - 11, _part_code_for_wo_item(it), "Helvetica", 7)
                 txt(layout["parts_x"] + 110, row_y_parts - 11, (it.description_snapshot or "-")[:42], "Helvetica", 7)
                 txt_right(layout["parts_x"] + layout["parts_w"] - 135, row_y_parts - 11, f"{float(it.qty or 0):g}", "Helvetica", 7)
                 txt_right(layout["parts_x"] + layout["parts_w"] - 78, row_y_parts - 11, money(it.unit_price_snapshot), "Helvetica", 7)

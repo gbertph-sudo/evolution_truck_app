@@ -44,6 +44,30 @@ function expiresText(row){
 let QUOTES_CACHE = [];
 let ACTIVE_QUOTE = null;
 
+
+async function openQuotePdf(quoteId){
+  const response = await fetch(`${QUOTES_API}/${quoteId}/pdf`, {
+    headers: authHeaders(),
+  });
+  if (response.status === 401) {
+    window.location.replace("/static/index.html");
+    throw new Error("Unauthorized");
+  }
+  if (!response.ok) {
+    let detail = `HTTP ${response.status}`;
+    try {
+      const data = await response.json();
+      detail = data?.detail || data?.message || detail;
+    } catch {}
+    throw new Error(detail);
+  }
+  const blob = await response.blob();
+  const blobUrl = window.URL.createObjectURL(blob);
+  const win = window.open(blobUrl, "_blank");
+  if (!win) window.location.href = blobUrl;
+  setTimeout(() => window.URL.revokeObjectURL(blobUrl), 15000);
+}
+
 async function fetchJson(url, options = {}){
   const response = await fetch(url, {
     ...options,
@@ -123,7 +147,7 @@ function renderTable(rows){
       <td>
         <div class="row-actions">
           <button class="btn btn-ghost" type="button" onclick="openQuote(${row.id})">Open</button>
-          <button class="btn btn-ghost" type="button" onclick="window.open('${QUOTES_API}/${row.id}/pdf','_blank')">PDF</button>
+          <button class="btn btn-ghost" type="button" onclick="openQuotePdf(${row.id})">PDF</button>
         </div>
       </td>
     </tr>
@@ -167,7 +191,7 @@ function renderDetail(row){
       <div class="line-top">
         <div>
           <div class="line-name">${item.description || "-"}</div>
-          <div class="muted">Inventory ID: ${item.inventory_item_id || "-"}</div>
+          <div class="muted">Part #: ${item.part_code || item.inventory_item_id || "-"}</div>
         </div>
         <div style="text-align:right">
           <div style="font-weight:900">${money(item.line_total)}</div>
@@ -294,7 +318,7 @@ document.addEventListener("DOMContentLoaded", () => {
   byId("refreshBtn")?.addEventListener("click", loadQuotes);
   byId("cleanupBtn")?.addEventListener("click", cleanupExpired);
   byId("pdfBtn")?.addEventListener("click", () => {
-    if (ACTIVE_QUOTE) window.open(`${QUOTES_API}/${ACTIVE_QUOTE.id}/pdf`, "_blank");
+    if (ACTIVE_QUOTE) openQuotePdf(ACTIVE_QUOTE.id).catch(error => alert(error.message || "Could not generate PDF"));
   });
   byId("markPaidBtn")?.addEventListener("click", markPaid);
   byId("convertSaleBtn")?.addEventListener("click", () => convertToSale("PAY_NOW"));

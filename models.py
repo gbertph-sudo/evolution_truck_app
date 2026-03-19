@@ -217,6 +217,11 @@ class WorkOrderItem(Base):
     inventory_item: Mapped["InventoryItem"] = relationship("InventoryItem")
     added_by: Mapped[Optional["User"]] = relationship("User")
 
+    @property
+    def part_code(self) -> Optional[str]:
+        inv = getattr(self, "inventory_item", None)
+        return getattr(inv, "part_code", None) if inv else None
+
 
 class WorkOrderLabor(Base):
     __tablename__ = "work_order_labors"
@@ -309,6 +314,11 @@ class InvoiceItem(Base):
     invoice: Mapped["Invoice"] = relationship("Invoice", back_populates="items")
     inventory_item: Mapped[Optional["InventoryItem"]] = relationship("InventoryItem")
     work_order_item: Mapped[Optional["WorkOrderItem"]] = relationship("WorkOrderItem")
+
+    @property
+    def part_code(self) -> Optional[str]:
+        inv = getattr(self, "inventory_item", None)
+        return getattr(inv, "part_code", None) if inv else None
 
 
 # ======================================================

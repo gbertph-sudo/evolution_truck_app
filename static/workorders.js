@@ -32,6 +32,28 @@ async function apiFetch(url, opts = {}){
   return await res.text();
 }
 
+
+async function openPdfWithAuth(url){
+  const token = getToken();
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  const res = await fetch(url, { headers });
+  if (!res.ok){
+    let msg = `${res.status} ${res.statusText}`;
+    try {
+      const data = await res.json();
+      msg = data?.detail
+        ? (typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail))
+        : msg;
+    } catch {}
+    throw new Error(msg);
+  }
+  const blob = await res.blob();
+  const blobUrl = window.URL.createObjectURL(blob);
+  const w = window.open(blobUrl, "_blank");
+  if (!w) window.location.href = blobUrl;
+  setTimeout(() => window.URL.revokeObjectURL(blobUrl), 15000);
+}
+
 // --------------------
 // API autodetect (porque en tu swagger a veces hay /api y a veces no)
 // --------------------
@@ -252,8 +274,7 @@ async function onRowAction(e){
 
   if (action === "pdf"){
     const pdfUrl = urlWOPdf(id);
-    const w = window.open(pdfUrl, "_blank");
-    if (!w) window.location.href = pdfUrl;
+    openPdfWithAuth(pdfUrl).catch(e => alert(e.message || "Could not generate PDF"));
     return;
   }
   if (action === "open"){
@@ -1038,8 +1059,7 @@ function printCurrentWorkOrder(){
       frame.contentWindow.print();
       setMsg("detailsMsg", "", false);
     }catch(e){
-      const w = window.open(pdfUrl, "_blank");
-      if (!w) window.location.href = pdfUrl;
+      openPdfWithAuth(pdfUrl).catch(err => alert(err.message || "Could not generate PDF"));
       setMsg("detailsMsg", "Opened PDF for printing.", false);
     }
   };
@@ -1158,8 +1178,7 @@ async function init(){
   $("pdfBtn").addEventListener("click", ()=>{
     if (!CURRENT_WO?.id) return;
     const pdfUrl = urlWOPdf(CURRENT_WO.id);
-    const w = window.open(pdfUrl, "_blank");
-    if (!w) window.location.href = pdfUrl;
+    openPdfWithAuth(pdfUrl).catch(e => alert(e.message || "Could not generate PDF"));
   });
 
   $("detailsRefreshBtn").addEventListener("click", async ()=>{

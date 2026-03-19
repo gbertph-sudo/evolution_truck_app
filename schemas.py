@@ -243,6 +243,7 @@ class WorkOrderItemOut(BaseModel):
     cost_snapshot: Decimal = Decimal("0.00")
 
     added_by_user_id: Optional[int] = None
+    part_code: Optional[str] = None
     created_at: datetime
 
 
@@ -358,6 +359,7 @@ class InvoiceItemOut(BaseModel):
     # ✅ NUEVO: links opcionales
     inventory_item_id: Optional[int] = None
     work_order_item_id: Optional[int] = None
+    part_code: Optional[str] = None
 
 
 class InvoiceOut(BaseModel):
