@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, List
 
@@ -293,15 +293,30 @@ def quick_customer_create(
     return {'id': customer.id, 'name': customer.name, 'phone': customer.phone, 'email': customer.email, 'existing': False}
 
 
+
 @router.post('/checkout')
 def checkout_parts_store(
     payload: dict,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    document_type = str(payload.get('document_type') or 'SALE').strip().upper()
+    if document_type not in {'SALE', 'QUOTE'}:
+        raise HTTPException(status_code=422, detail='document_type must be SALE or QUOTE')
+
+    settlement_type = str(payload.get('settlement_type') or 'PAY_NOW').strip().upper()
+    if settlement_type not in {'PAY_NOW', 'CHARGE_ACCOUNT'}:
+        raise HTTPException(status_code=422, detail='settlement_type must be PAY_NOW or CHARGE_ACCOUNT')
+
     payment_method = str(payload.get('payment_method') or '').strip().upper()
-    if payment_method not in {'CASH', 'CARD', 'ZELLE', 'CHECK'}:
-        raise HTTPException(status_code=422, detail='payment_method must be CASH, CARD, ZELLE or CHECK')
+    if document_type == 'SALE':
+        if settlement_type == 'PAY_NOW':
+            if payment_method not in {'CASH', 'CARD', 'ZELLE', 'CHECK'}:
+                raise HTTPException(status_code=422, detail='payment_method must be CASH, CARD, ZELLE or CHECK')
+        else:
+            payment_method = 'ACCOUNT'
+    else:
+        payment_method = ''
 
     raw_items = payload.get('items') or []
     if not isinstance(raw_items, list) or not raw_items:
@@ -332,13 +347,16 @@ def checkout_parts_store(
         if customer is None:
             customer = Customer(name=name, phone=phone, email=email)
             if hasattr(customer, 'is_active'):
-                customer.is_active = True  # type: ignore[attr-defined]
+                customer.is_active = True
             db.add(customer)
             db.flush()
     elif customer_mode == 'WALK_IN':
         customer = None
     else:
         raise HTTPException(status_code=422, detail='customer_mode must be EXISTING, QUICK, or WALK_IN')
+
+    if document_type == 'SALE' and settlement_type == 'CHARGE_ACCOUNT' and not customer:
+        raise HTTPException(status_code=422, detail='Customer is required for Charge to Account')
 
     cart_lines = []
     subtotal = Decimal('0.00')
@@ -353,7 +371,9 @@ def checkout_parts_store(
         item = db.get(InventoryItem, item_id)
         if not item or item.deleted_at is not None or not bool(item.is_active):
             raise HTTPException(status_code=404, detail=f'Inventory item {item_id} not found or inactive')
-        if int(item.quantity_in_stock or 0) < qty:
+
+        stock = int(item.quantity_in_stock or 0)
+        if document_type == 'SALE' and stock < qty:
             raise HTTPException(status_code=422, detail=f'Insufficient stock for {item.part_code} - {item.part_name}')
 
         base_price = _q2(item.sale_price_base)
@@ -369,6 +389,7 @@ def checkout_parts_store(
             'unit_price': unit_price,
             'line_total': line_total,
             'taxable': bool(item.taxable),
+            'stock': stock,
         })
         subtotal += line_total
         if bool(item.taxable):
@@ -378,19 +399,25 @@ def checkout_parts_store(
     taxable_subtotal = _q2(taxable_subtotal)
 
     tax = Decimal('0.00')
-    if payment_method == 'CASH':
-        tax = _q2(taxable_subtotal * TAX_RATE) if cash_taxable else Decimal('0.00')
-        processing_fee = Decimal('0.00')
-    elif payment_method == 'CARD':
-        tax = _q2(taxable_subtotal * TAX_RATE)
-        processing_fee = _q2((subtotal + tax) * CARD_FEE_RATE)
-    else:  # ZELLE or CHECK
-        tax = _q2(taxable_subtotal * TAX_RATE)
-        processing_fee = Decimal('0.00')
+    processing_fee = Decimal('0.00')
+    expires_at = None
+
+    if document_type == 'QUOTE':
+        expires_at = datetime.utcnow() + timedelta(hours=24)
+        settlement_type = None
+        payment_method = None
+    else:
+        if payment_method == 'CASH':
+            tax = _q2(taxable_subtotal * TAX_RATE) if cash_taxable else Decimal('0.00')
+        elif payment_method == 'CARD':
+            tax = _q2(taxable_subtotal * TAX_RATE)
+            processing_fee = _q2((subtotal + tax) * CARD_FEE_RATE)
+        else:
+            tax = _q2(taxable_subtotal * TAX_RATE)
 
     total = _q2(subtotal + tax + processing_fee)
 
-    description_bits = ['POS sale']
+    description_bits = ['POS quote' if document_type == 'QUOTE' else 'POS sale']
     if customer and customer.name:
         description_bits.append(customer.name)
     elif customer_mode == 'WALK_IN':
@@ -398,7 +425,7 @@ def checkout_parts_store(
 
     work_order = WorkOrder(
         description=' - '.join(description_bits),
-        status='DONE',
+        status='DONE' if document_type == 'SALE' else 'OPEN',
         customer_id=customer.id if customer else None,
     )
     db.add(work_order)
@@ -416,14 +443,20 @@ def checkout_parts_store(
     invoice_notes = notes
     if customer_mode == 'WALK_IN':
         invoice_notes = ('Walk-in Customer' + (' | ' + notes if notes else ''))
-    if payment_method == 'ZELLE':
+    if document_type == 'QUOTE':
+        extra = 'QUOTE | Valid for 24 hours | Inventory is not reserved until payment is received.'
+        invoice_notes = f'{invoice_notes} | {extra}' if invoice_notes else extra
+    elif payment_method == 'ZELLE':
         extra = f'Zelle payment destination: {ZELLE_EMAIL}'
         invoice_notes = f'{invoice_notes} | {extra}' if invoice_notes else extra
-    if payment_method == 'CARD':
+    elif payment_method == 'CARD':
         extra = 'POS card processing fee 4% applied.'
         invoice_notes = f'{invoice_notes} | {extra}' if invoice_notes else extra
-    if payment_method == 'CASH':
+    elif payment_method == 'CASH':
         extra = f'Cash sale | Taxable: {"YES" if cash_taxable else "NO"}'
+        invoice_notes = f'{invoice_notes} | {extra}' if invoice_notes else extra
+    if settlement_type == 'CHARGE_ACCOUNT':
+        extra = 'Charged to account / A-R'
         invoice_notes = f'{invoice_notes} | {extra}' if invoice_notes else extra
     if price_override_lines:
         extra = 'Price overrides: ' + '; '.join(price_override_lines)
@@ -432,50 +465,69 @@ def checkout_parts_store(
     invoice = Invoice(
         work_order_id=work_order.id,
         customer_id=customer.id if customer else None,
-        status='PAID',
+        status='QUOTE' if document_type == 'QUOTE' else ('UNPAID' if settlement_type == 'CHARGE_ACCOUNT' else 'PAID'),
         subtotal=subtotal,
         tax=tax,
         total=total,
         notes=invoice_notes,
         payment_method=payment_method,
         processing_fee=processing_fee,
-        paid_at=datetime.utcnow(),
+        paid_at=(datetime.utcnow() if document_type == 'SALE' and settlement_type == 'PAY_NOW' else None),
+        document_type=document_type,
+        settlement_type=(settlement_type if document_type == 'SALE' else None),
+        expires_at=expires_at,
+        converted_at=None,
+        inventory_applied=False,
+        quote_origin='PARTS_STORE' if document_type == 'QUOTE' else None,
     )
     db.add(invoice)
     db.flush()
     invoice.invoice_number = _format_invoice_number(invoice.id)
 
+    special_order_count = 0
     for line in cart_lines:
         item = line['item']
+        ii_desc = item.part_name
+        ii_price = line['unit_price']
+        ii_total = line['line_total']
+
+        if document_type == 'QUOTE' and int(line['stock'] or 0) < int(line['qty']):
+            ii_desc = f'[OUT OF STOCK / SPECIAL ORDER] {ii_desc}'
+            special_order_count += 1
+
         ii = InvoiceItem(
             invoice_id=invoice.id,
             item_type='PART',
-            description=item.part_name,
+            description=ii_desc,
             qty=_q2(line['qty']),
-            unit_price=line['unit_price'],
-            line_total=line['line_total'],
+            unit_price=ii_price,
+            line_total=ii_total,
             inventory_item_id=item.id,
             work_order_item_id=None,
             cost_snapshot=_q2(item.cost_price),
         )
         db.add(ii)
 
-        item.quantity_in_stock = int(item.quantity_in_stock or 0) - int(line['qty'])
-        item.times_sold = int(item.times_sold or 0) + int(line['qty'])
-        item.last_used_date = date.today()
+        if document_type == 'SALE':
+            item.quantity_in_stock = int(item.quantity_in_stock or 0) - int(line['qty'])
+            item.times_sold = int(item.times_sold or 0) + int(line['qty'])
+            item.last_used_date = date.today()
 
-        mv = InventoryMovement(
-            item_id=item.id,
-            movement_type='out',
-            quantity_moved=int(line['qty']),
-            unit_cost=None,
-            movement_date=datetime.utcnow(),
-            user_id=current_user.id,
-            related_job_id=work_order.id,
-            movement_notes=f'POS sale {invoice.invoice_number}',
-        )
-        db.add(mv)
-        db.add(item)
+            mv = InventoryMovement(
+                item_id=item.id,
+                movement_type='out',
+                quantity_moved=int(line['qty']),
+                unit_cost=None,
+                movement_date=datetime.utcnow(),
+                user_id=current_user.id,
+                related_job_id=work_order.id,
+                movement_notes=f'POS sale {invoice.invoice_number}',
+            )
+            db.add(mv)
+            db.add(item)
+
+    if document_type == 'SALE':
+        invoice.inventory_applied = True
 
     db.commit()
 
@@ -489,10 +541,15 @@ def checkout_parts_store(
         'customer_name': customer.name if customer else 'Walk-in Customer',
         'payment_method': payment_method,
         'cash_taxable': cash_taxable if payment_method == 'CASH' else None,
+        'document_type': document_type,
+        'settlement_type': settlement_type,
+        'status': invoice.status,
         'subtotal': float(subtotal),
         'tax': float(tax),
         'processing_fee': float(processing_fee),
         'total': float(total),
+        'special_order_lines': special_order_count,
+        'expires_at': invoice.expires_at.isoformat() if invoice.expires_at else None,
         'zelle_email': ZELLE_EMAIL if payment_method == 'ZELLE' else None,
         'invoice_pdf_url': f'/invoices/{invoice.id}/pdf',
     }

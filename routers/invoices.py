@@ -141,9 +141,13 @@ def list_invoices(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    stmt = select(Invoice).options(
-        joinedload(Invoice.customer),
-        joinedload(Invoice.items),
+    stmt = (
+        select(Invoice)
+        .where((Invoice.document_type.is_(None)) | (Invoice.document_type != "QUOTE"))
+        .options(
+            joinedload(Invoice.customer),
+            joinedload(Invoice.items),
+        )
     )
 
     if q:

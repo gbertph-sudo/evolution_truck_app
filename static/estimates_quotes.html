@@ -6,13 +6,59 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Estimates / Quotes - Evolution Truck</title>
   <style>
-    .card{background:#fff;border-radius:18px;padding:18px;box-shadow:var(--et-shadow);border:1px solid var(--et-border);}
-    .grid{display:grid;grid-template-columns:2fr 1fr;gap:16px;}
-    .muted{color:var(--et-muted);}
-    .placeholder{border:1px dashed #d0d5dd;border-radius:16px;padding:16px;background:#fafafa;}
-    .links{display:grid;gap:10px;}
-    .links a{display:flex;justify-content:space-between;align-items:center;text-decoration:none;color:var(--et-text);border:1px solid var(--et-border);border-radius:14px;background:#fff;padding:12px 14px;font-weight:700;}
-    @media (max-width:980px){.grid{grid-template-columns:1fr;}}
+    :root{
+      --et-line:#e6e8ec;--et-soft:#f7f8fa;--et-shadow:0 16px 40px rgba(15,23,42,.08);
+      --et-text:#101828;--et-muted:#667085;--et-red:#e10600;--et-green:#067647;--et-amber:#b54708;--et-blue:#175cd3;
+    }
+    *{box-sizing:border-box}
+    .card{background:#fff;border:1px solid var(--et-line);border-radius:20px;box-shadow:var(--et-shadow)}
+    .page-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(360px,.9fr);gap:18px;align-items:start}
+    .toolbar{padding:18px;display:grid;gap:14px}
+    .toolbar-grid{display:grid;grid-template-columns:1.2fr .9fr .8fr auto auto;gap:12px;align-items:center}
+    .field,.select,textarea{width:100%;border:1px solid #d0d5dd;border-radius:14px;padding:12px 14px;font-weight:700;background:#fff;color:var(--et-text)}
+    .field:focus,.select:focus,textarea:focus{outline:none;border-color:rgba(225,6,0,.45);box-shadow:0 0 0 4px rgba(225,6,0,.12)}
+    .btn{border:none;border-radius:14px;padding:12px 14px;font-weight:900;cursor:pointer;transition:.18s}
+    .btn:hover{transform:translateY(-1px)}
+    .btn-primary{background:var(--et-red);color:#fff}
+    .btn-ghost{background:#fff;color:#111827;border:1px solid var(--et-line)}
+    .btn-success{background:#067647;color:#fff}
+    .btn-warning{background:#b54708;color:#fff}
+    .btn-muted{background:#eef2f6;color:#344054}
+    .kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}
+    .kpi{padding:16px 18px}
+    .kpi-label{font-size:12px;font-weight:900;color:var(--et-muted);text-transform:uppercase;letter-spacing:.08em}
+    .kpi-value{font-size:30px;font-weight:950;color:var(--et-text);margin-top:8px}
+    .kpi-note{margin-top:8px;color:var(--et-muted);font-size:12px}
+    .list-wrap{padding:0 18px 18px}
+    .table-wrap{overflow:auto;border-top:1px solid var(--et-line)}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:12px 10px;border-bottom:1px solid #eef2f6;text-align:left;vertical-align:top;font-size:13px}
+    th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#667085;background:#fafafa;position:sticky;top:0;z-index:1}
+    .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:900}
+    .pill.quote{background:#fff4e5;color:#b54708}
+    .pill.expired{background:#fef3f2;color:#b42318}
+    .pill.unpaid{background:#eff8ff;color:#175cd3}
+    .pill.paid{background:#ecfdf3;color:#067647}
+    .pill.void{background:#f2f4f7;color:#344054}
+    .muted{color:var(--et-muted)}
+    .aside-shell{position:sticky;top:18px;padding:18px;display:grid;gap:14px;max-height:calc(100vh - 160px);overflow:auto}
+    .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .stat{border:1px solid var(--et-line);border-radius:16px;padding:12px;background:#fafafa}
+    .stat .label{font-size:11px;font-weight:900;text-transform:uppercase;color:var(--et-muted);letter-spacing:.08em}
+    .stat .value{margin-top:6px;font-size:15px;font-weight:900;color:var(--et-text)}
+    .line-items{display:grid;gap:10px}
+    .line{border:1px solid var(--et-line);border-radius:14px;padding:12px}
+    .line-top{display:flex;justify-content:space-between;gap:12px}
+    .line-name{font-weight:900}
+    .empty{padding:28px;border:1px dashed #d0d5dd;border-radius:16px;background:#fafafa;text-align:center;color:var(--et-muted)}
+    .action-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .inline-note{font-size:12px;color:var(--et-muted)}
+    .row-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .row-actions .btn{padding:8px 10px;border-radius:10px;font-size:12px}
+    .meta-line{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:6px 0;border-bottom:1px dashed #eef2f6}
+    .meta-line:last-child{border-bottom:none}
+    @media (max-width:1200px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.toolbar-grid{grid-template-columns:1fr 1fr}.page-grid{grid-template-columns:1fr}.aside-shell{position:static;max-height:none}}
+    @media (max-width:760px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.toolbar-grid{grid-template-columns:1fr}.detail-grid,.action-grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -24,7 +70,7 @@
           <div>
             <div class="et-brand-kicker">Sales Workspace</div>
             <h1 class="et-brand-title">Estimates / Quotes</h1>
-            <div class="et-brand-subtitle">Create quotes and convert them later.</div>
+            <div class="et-brand-subtitle">24-hour quote control, conversion to sale, and follow-up collections.</div>
           </div>
         </div>
         <div class="et-userbox">
@@ -40,6 +86,7 @@
       <div class="et-page-tools">
         <div class="et-breadcrumb"><a href="/dashboard.html">Dashboard</a> / <span>Estimates / Quotes</span></div>
         <div class="et-page-actions">
+          <button class="et-btn et-btn-secondary" type="button" onclick="window.location.href='/static/parts_store.html'">Parts Store</button>
           <button class="et-btn et-btn-secondary" type="button" onclick="window.location.href='/dashboard.html'">Dashboard</button>
           <button class="et-btn et-btn-secondary" type="button" id="logoutBtn">Logout</button>
         </div>
@@ -48,35 +95,125 @@
   </section>
 
   <main class="et-main">
-    <div class="et-page-head">
-      <div>
-        <h2 class="et-page-title">Estimates / Quotes</h2>
-        <div class="et-page-desc">Create quotes and convert them later.</div>
-      </div>
-      <div><span class="et-badge et-badge-ready">Ready for development</span></div>
+    <div class="kpis" id="kpiGrid">
+      <div class="card kpi"><div class="kpi-label">Active Quotes</div><div class="kpi-value" id="kpiActive">--</div><div class="kpi-note">Quotes still open within the 24-hour window.</div></div>
+      <div class="card kpi"><div class="kpi-label">Expiring Soon</div><div class="kpi-value" id="kpiSoon">--</div><div class="kpi-note">Quotes with less than 6 hours left.</div></div>
+      <div class="card kpi"><div class="kpi-label">Expired</div><div class="kpi-value" id="kpiExpired">--</div><div class="kpi-note">Expired automatically when time runs out.</div></div>
+      <div class="card kpi"><div class="kpi-label">Unpaid A/R</div><div class="kpi-value" id="kpiUnpaid">--</div><div class="kpi-note">Converted quotes charged to account.</div></div>
+      <div class="card kpi"><div class="kpi-label">Open Amount</div><div class="kpi-value" id="kpiOpenAmount">--</div><div class="kpi-note">Active quote + receivable exposure.</div></div>
     </div>
 
-    <div class="grid">
+    <div class="page-grid">
       <section class="card">
-        <h3 style="margin-top:0;">Module Workspace</h3>
-        <p class="muted">This page now has the same professional visual system as the rest of the app.</p>
-        <div class="placeholder">
-          <strong>Visual fixed.</strong><br><br>
-          This module is ready for you to build later without changing the global visual identity.
+        <div class="toolbar">
+          <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">
+            <div>
+              <h2 style="margin:0;font-size:24px">Quote Control Board</h2>
+              <div class="muted">Search, open, print, convert, collect, or void quotes from one screen.</div>
+            </div>
+            <div class="row-actions">
+              <button class="btn btn-ghost" id="refreshBtn" type="button">Refresh</button>
+              <button class="btn btn-muted" id="cleanupBtn" type="button">Expire Old Quotes</button>
+            </div>
+          </div>
+
+          <div class="toolbar-grid">
+            <input id="searchInput" class="field" type="text" placeholder="Search by quote #, customer, phone or notes">
+            <select id="statusFilter" class="select">
+              <option value="">All Statuses</option>
+              <option value="QUOTE">QUOTE</option>
+              <option value="EXPIRED">EXPIRED</option>
+              <option value="UNPAID">UNPAID</option>
+              <option value="PAID">PAID</option>
+              <option value="VOID">VOID</option>
+            </select>
+            <select id="sortMode" class="select">
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="expires_soon">Expires soon</option>
+              <option value="highest_total">Highest total</option>
+            </select>
+            <button class="btn btn-primary" id="applyBtn" type="button">Apply</button>
+            <button class="btn btn-ghost" id="clearBtn" type="button">Clear</button>
+          </div>
+        </div>
+
+        <div class="list-wrap">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Quote</th>
+                  <th>Customer</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th>Expires</th>
+                  <th>Total</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="quotesTableBody">
+                <tr><td colspan="7" class="muted">Loading quotes...</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
 
-      <aside class="card">
-        <h3 style="margin-top:0;">Quick Links</h3>
-        <div class="links">
-          <a href="/dashboard.html"><span>Back to Dashboard</span><span>→</span></a>
-          <a href="/static/workorders.html"><span>Work Orders</span><span>→</span></a>
-          <a href="/static/inventory.html"><span>Inventory</span><span>→</span></a>
+      <aside class="card aside-shell">
+        <div>
+          <h3 style="margin:0;font-size:22px" id="detailTitle">Quote Details</h3>
+          <div class="muted" id="detailSubtitle">Select a quote from the list.</div>
+        </div>
+
+        <div id="detailEmpty" class="empty">No quote selected yet.</div>
+
+        <div id="detailContent" class="hidden" style="display:none;gap:14px;flex-direction:column">
+          <div class="detail-grid">
+            <div class="stat"><div class="label">Status</div><div class="value" id="detailStatus">-</div></div>
+            <div class="stat"><div class="label">Document</div><div class="value" id="detailDocument">-</div></div>
+            <div class="stat"><div class="label">Customer</div><div class="value" id="detailCustomer">-</div></div>
+            <div class="stat"><div class="label">Phone</div><div class="value" id="detailPhone">-</div></div>
+            <div class="stat"><div class="label">Expires</div><div class="value" id="detailExpires">-</div></div>
+            <div class="stat"><div class="label">Inventory Applied</div><div class="value" id="detailInventoryApplied">-</div></div>
+          </div>
+
+          <div class="card" style="padding:14px">
+            <div class="meta-line"><strong>Quote No.</strong><span id="detailNumber">-</span></div>
+            <div class="meta-line"><strong>Work Order</strong><span id="detailWorkOrder">-</span></div>
+            <div class="meta-line"><strong>Settlement</strong><span id="detailSettlement">-</span></div>
+            <div class="meta-line"><strong>Payment Method</strong><span id="detailPaymentMethod">-</span></div>
+            <div class="meta-line"><strong>Subtotal</strong><span id="detailSubtotal">-</span></div>
+            <div class="meta-line"><strong>Tax</strong><span id="detailTax">-</span></div>
+            <div class="meta-line"><strong>Total</strong><span id="detailTotal">-</span></div>
+          </div>
+
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <strong>Line Items</strong>
+              <span class="inline-note">Part codes remain tied to invoice PDF.</span>
+            </div>
+            <div class="line-items" id="detailItems"></div>
+          </div>
+
+          <div>
+            <strong>Internal Notes</strong>
+            <div class="muted" id="detailNotes" style="margin-top:8px">-</div>
+          </div>
+
+          <div class="action-grid">
+            <button class="btn btn-ghost" id="pdfBtn" type="button">Open PDF</button>
+            <button class="btn btn-success" id="markPaidBtn" type="button">Mark Paid</button>
+            <button class="btn btn-primary" id="convertSaleBtn" type="button">Convert to Sale</button>
+            <button class="btn btn-warning" id="chargeArBtn" type="button">Charge to Account</button>
+            <button class="btn btn-muted" id="voidBtn" type="button" style="grid-column:1/-1">Void Quote</button>
+          </div>
         </div>
       </aside>
     </div>
   </main>
 
   <script src="/static/app-shell.js?v=2"></script>
+  <script src="/static/estimates_quotes.js?v=3"></script>
 </body>
 </html>

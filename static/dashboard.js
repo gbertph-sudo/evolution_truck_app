@@ -225,7 +225,7 @@ document.addEventListener("DOMContentLoaded", () => {
   bindNavButton("goServiceHistoryBtn", "/static/service_history.html");
   bindNavButton("goVendorsBtn", "/static/vendors.html");
   bindNavButton("goPurchaseOrdersBtn", "/static/purchase_orders.html");
-  bindNavButton("goQuotesBtn", "/static/quotes.html");
+  bindNavButton("goQuotesBtn", "/static/estimates_quotes.html");
   bindNavButton("goPaymentsBtn", "/static/payments.html");
   bindNavButton("goAccountingBtn", "/static/accounting.html");
   bindNavButton("goLaborTrackingBtn", "/static/labor_tracking.html");

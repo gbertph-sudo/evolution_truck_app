@@ -190,6 +190,23 @@
           <h3>Checkout</h3>
           <div class="inline-2">
             <div>
+              <label class="hint">Document Type</label>
+              <select id="documentType" class="select-input">
+                <option value="SALE">Sale</option>
+                <option value="QUOTE">Quote</option>
+              </select>
+            </div>
+            <div>
+              <label class="hint">Settlement</label>
+              <select id="settlementType" class="select-input">
+                <option value="PAY_NOW">Pay Now</option>
+                <option value="CHARGE_ACCOUNT">Charge to Account</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="inline-2" style="margin-top:12px;">
+            <div id="paymentMethodBox">
               <label class="hint">Payment Method</label>
               <select id="paymentMethod" class="select-input">
                 <option value="CASH">Cash</option>
@@ -214,7 +231,7 @@
             <textarea id="saleNotes" rows="3" class="text-input" placeholder="Optional note for this POS sale"></textarea>
           </div>
 
-          <div class="hint" style="margin-top:12px;">Sale price can be changed during checkout if approved. The final sold price will be saved on the invoice for accounting.</div>
+          <div id="checkoutModeHint" class="hint" style="margin-top:12px;">Sale price can be changed during checkout if approved. The final sold price will be saved on the invoice for accounting.</div>
 
           <div class="totals">
             <div class="total-row"><span>Subtotal</span><strong id="subtotalValue">$0.00</strong></div>

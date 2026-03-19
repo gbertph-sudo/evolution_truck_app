@@ -21,6 +21,22 @@ const state = {
   customerHistory: null,
 };
 
+function getDocumentType() {
+  return $('documentType')?.value || 'SALE';
+}
+
+function getSettlementType() {
+  return $('settlementType')?.value || 'PAY_NOW';
+}
+
+function isQuoteMode() {
+  return getDocumentType() === 'QUOTE';
+}
+
+function isChargeAccountMode() {
+  return getSettlementType() === 'CHARGE_ACCOUNT';
+}
+
 function readToken() {
   return (
     localStorage.getItem('token') ||
@@ -270,20 +286,21 @@ function renderParts(list) {
 function addToCart(id) {
   const part = state.parts.find((x) => Number(x.id) === Number(id));
   if (!part) return;
-  if (Number(part.quantity_in_stock || 0) <= 0) {
-    showMsg('This item is out of stock.', true);
-    return;
-  }
+  const stock = Number(part.quantity_in_stock || 0);
 
   const existing = state.cart.find((x) => Number(x.id) === Number(id));
   if (existing) {
-    if (existing.qty + 1 > Number(part.quantity_in_stock || 0)) {
+    if (!isQuoteMode() && existing.qty + 1 > stock) {
       showMsg('Cannot add more than current stock.', true);
       return;
     }
     existing.qty += 1;
   } else {
-    state.cart.push({ ...part, qty: 1, unit_price: Number(part.sale_price_base || 0), base_price: Number(part.sale_price_base || 0) });
+    if (!isQuoteMode() && stock <= 0) {
+      showMsg('This item is out of stock.', true);
+      return;
+    }
+    state.cart.push({ ...part, qty: 1, unit_price: Number(part.sale_price_base || 0), base_price: Number(part.sale_price_base || 0), special_order: stock <= 0 });
   }
   clearMsg();
   renderCart();
@@ -295,8 +312,10 @@ function updateQty(id, delta) {
   const next = row.qty + delta;
   if (next <= 0) {
     state.cart = state.cart.filter((x) => Number(x.id) !== Number(id));
-  } else if (next <= Number(row.quantity_in_stock || 0)) {
+  } else if (isQuoteMode() || next <= Number(row.quantity_in_stock || 0)) {
     row.qty = next;
+  } else {
+    showMsg('Cannot add more than current stock for a sale.', true);
   }
   renderCart();
 }
@@ -334,11 +353,17 @@ function calcTotals() {
   let tax = 0;
   let fee = 0;
 
+  if (isQuoteMode()) {
+    return { subtotal, tax: 0, fee: 0, total: subtotal };
+  }
+
   if (paymentMethod === 'CASH') {
     tax = cashTaxable ? taxableSubtotal * 0.07 : 0;
   } else if (paymentMethod === 'CARD') {
     tax = taxableSubtotal * 0.07;
     fee = (subtotal + tax) * 0.04;
+  } else if (paymentMethod === 'ACCOUNT') {
+    tax = taxableSubtotal * 0.07;
   } else {
     tax = taxableSubtotal * 0.07;
   }
@@ -360,15 +385,17 @@ function renderCart() {
       const basePrice = Number(row.base_price ?? row.sale_price_base ?? 0);
       const lineTotal = currentPrice * Number(row.qty || 0);
       const changed = Math.abs(currentPrice - basePrice) > 0.0001;
+      const stock = Number(row.quantity_in_stock || 0);
+      const special = isQuoteMode() && stock <= 0;
       return `
       <div class="cart-item">
         <div>
           <div class="cart-name">${row.part_name}</div>
-          <div class="cart-code">${row.part_code} · Base: ${money(basePrice)}</div>
+          <div class="cart-code">${row.part_code} · Base: ${money(basePrice)}${special ? ' · <span style="color:#b42318;font-weight:900">OUT OF STOCK / SPECIAL ORDER</span>' : ''}</div>
           <div class="price-editor">
             <div>
               <input class="price-input" type="number" min="0" step="0.01" value="${currentPrice.toFixed(2)}" data-price-id="${row.id}" />
-              <div class="price-note">${changed ? 'Custom sold price saved for this sale.' : 'Using inventory sale price.'}</div>
+              <div class="price-note">${isQuoteMode() ? (special ? 'Allowed in quote mode. If converted without stock, it will go to $0.00 and be marked special order.' : 'Quote mode: inventory is not reserved.') : (changed ? 'Custom sold price saved for this sale.' : 'Using inventory sale price.')}</div>
             </div>
             <div class="line-total">${money(lineTotal)}</div>
           </div>
@@ -601,9 +628,30 @@ async function searchCustomers(q) {
 }
 
 function updatePaymentUI() {
+  const docType = getDocumentType();
+  const settlement = getSettlementType();
   const pm = $('paymentMethod').value;
-  $('cashTaxBox').classList.toggle('hidden', pm !== 'CASH');
-  $('zelleBox').classList.toggle('hidden', pm !== 'ZELLE');
+  const quoteMode = docType === 'QUOTE';
+  const chargeAccount = !quoteMode && settlement === 'CHARGE_ACCOUNT';
+
+  $('settlementType').disabled = quoteMode;
+  $('paymentMethodBox').classList.toggle('hidden', quoteMode || chargeAccount);
+  $('cashTaxBox').classList.toggle('hidden', quoteMode || chargeAccount || pm !== 'CASH');
+  $('zelleBox').classList.toggle('hidden', quoteMode || chargeAccount || pm !== 'ZELLE');
+
+  const hint = $('checkoutModeHint');
+  if (hint) {
+    hint.textContent = quoteMode
+      ? 'Quote mode: stock can be zero, inventory is not reduced, and the quote stays valid for 24 hours.'
+      : (chargeAccount
+          ? 'Charge to Account: customer is required, sale becomes UNPAID, and inventory is reduced now.'
+          : 'Pay Now: final sale is created immediately and inventory is reduced now.');
+  }
+
+  const btn = $('checkoutBtn');
+  if (btn) btn.textContent = quoteMode ? 'Create Quote' : 'Create Invoice';
+
+  renderParts(state.parts || []);
   renderCart();
 }
 
@@ -614,8 +662,10 @@ async function checkout() {
     return;
   }
 
-  const paymentMethod = $('paymentMethod').value;
+  const paymentMethod = isQuoteMode() ? null : (isChargeAccountMode() ? 'ACCOUNT' : $('paymentMethod').value);
   const payload = {
+    document_type: getDocumentType(),
+    settlement_type: getDocumentType() === 'QUOTE' ? null : getSettlementType(),
     payment_method: paymentMethod,
     cash_taxable: $('cashTaxable').value === 'true',
     customer_mode: state.customerMode,
@@ -637,13 +687,21 @@ async function checkout() {
     showMsg('Quick customer needs at least a name.', true);
     return;
   }
+  if (payload.document_type === 'SALE' && payload.settlement_type === 'CHARGE_ACCOUNT' && !payload.customer_id && state.customerMode !== 'QUICK') {
+    showMsg('Charge to Account requires a customer.', true);
+    return;
+  }
 
   $('checkoutBtn').disabled = true;
-  $('checkoutBtn').textContent = 'Creating Invoice...';
+  $('checkoutBtn').textContent = payload.document_type === 'QUOTE' ? 'Creating Quote...' : 'Creating Invoice...';
   try {
     const data = await apiSend(API.checkout, 'POST', payload);
     if (!data) return;
-    showMsg(`Invoice <strong>${data.invoice_number}</strong> created successfully. Total: <strong>${money(data.total)}</strong>${data.zelle_email ? `<br>Zelle to: <strong>${data.zelle_email}</strong>` : ''}<br><button id="openInvoicePdfBtn" class="btn btn-ghost btn-sm" type="button">Open invoice PDF</button>`);
+    const label = data.document_type === 'QUOTE' ? 'Quote' : 'Invoice';
+    const extra = data.document_type === 'QUOTE'
+      ? `${data.expires_at ? `<br>Valid until: <strong>${new Date(data.expires_at).toLocaleString()}</strong>` : ''}${data.special_order_lines ? `<br>Special-order lines: <strong>${data.special_order_lines}</strong>` : ''}`
+      : `${data.zelle_email ? `<br>Zelle to: <strong>${data.zelle_email}</strong>` : ''}${data.special_order_lines ? `<br>Special-order lines converted at $0.00: <strong>${data.special_order_lines}</strong>` : ''}`;
+    showMsg(`${label} <strong>${data.invoice_number}</strong> created successfully. Total: <strong>${money(data.total)}</strong>${extra}<br><button id="openInvoicePdfBtn" class="btn btn-ghost btn-sm" type="button">Open ${label.toLowerCase()} PDF</button>`);
     const pdfBtn = $('openInvoicePdfBtn');
     if (pdfBtn) pdfBtn.addEventListener('click', () => openInvoicePdf(data.invoice_pdf_url));
     state.cart = [];
@@ -694,6 +752,8 @@ function setupEvents() {
     $(id).addEventListener('input', renderSelectedCustomer);
   });
 
+  $('documentType').addEventListener('change', updatePaymentUI);
+  $('settlementType').addEventListener('change', updatePaymentUI);
   $('paymentMethod').addEventListener('change', updatePaymentUI);
   $('cashTaxable').addEventListener('change', renderCart);
   $('checkoutBtn').addEventListener('click', checkout);
