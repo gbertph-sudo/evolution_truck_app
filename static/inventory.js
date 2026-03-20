@@ -263,6 +263,7 @@ function readCreatePayload() {
 
     location: $("location").value.trim() || null,
     cost_price: toFloat($("cost_price").value, 0),
+    markup_percent: toFloat($("markup_percent").value, 0),
     sale_price_base: toFloat($("sale_price_base").value, 0),
     taxable: $("taxable").value === "true",
 
@@ -299,6 +300,7 @@ function fillFormFromItem(item) {
 
   $("location").value = item.location ?? "";
   $("cost_price").value = item.cost_price ?? 0;
+  if ($("markup_percent")) $("markup_percent").value = item.markup_percent ?? 0;
   $("sale_price_base").value = item.sale_price_base ?? 0;
   $("taxable").value = String(item.taxable ?? true);
 
@@ -312,6 +314,7 @@ function fillFormFromItem(item) {
 
   $("description").value = item.description ?? "";
   $("technical_notes").value = item.technical_notes ?? "";
+  calculateSalePrice();
 }
 
 function resetFormToNew() {
@@ -1035,5 +1038,23 @@ document.addEventListener("DOMContentLoaded", async () => {
     moves = [];
     movesCount = 0;
     updateTilesFromItems();
+  }
+});
+
+function calculateSalePrice() {
+  const costEl = document.getElementById("cost_price");
+  const markupEl = document.getElementById("markup_percent");
+  const saleEl = document.getElementById("sale_price_base");
+  if (!costEl || !markupEl || !saleEl) return;
+
+  const cost = parseFloat(costEl.value) || 0;
+  const markup = parseFloat(markupEl.value) || 0;
+  const sale = cost * (1 + markup / 100);
+  saleEl.value = sale.toFixed(2);
+}
+
+document.addEventListener("input", function (e) {
+  if (e.target && (e.target.id === "cost_price" || e.target.id === "markup_percent")) {
+    calculateSalePrice();
   }
 });

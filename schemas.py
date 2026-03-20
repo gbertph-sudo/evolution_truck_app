@@ -411,6 +411,36 @@ class InvoiceItemPriceUpdate(BaseModel):
     qty: Optional[Decimal] = Field(default=None, gt=0)
     unit_price: Optional[Decimal] = Field(default=None, ge=0)
 
+
+class PartsStoreCheckoutItem(BaseModel):
+    item_id: int
+    qty: Decimal = Field(default=Decimal("1.00"), gt=0)
+    unit_price: Decimal = Field(default=Decimal("0.00"), ge=0)
+    base_price: Optional[Decimal] = Field(default=Decimal("0.00"), ge=0)
+    discount_percent: Decimal = Field(default=Decimal("0.00"), ge=0, le=15)
+    price_mode: str = "NORMAL"
+    manual_price: bool = False
+
+    @field_validator("price_mode")
+    @classmethod
+    def validate_price_mode(cls, v: str):
+        vv = (v or "NORMAL").strip().upper()
+        if vv not in {"NORMAL", "DISC_5", "DISC_10", "DISC_15", "MANUAL"}:
+            raise ValueError("Invalid price_mode. Use: NORMAL, DISC_5, DISC_10, DISC_15, MANUAL")
+        return vv
+
+
+class PartsStoreCheckoutPayload(BaseModel):
+    document_type: str
+    settlement_type: Optional[str] = None
+    payment_method: Optional[str] = None
+    cash_taxable: bool = True
+    customer_mode: str
+    customer_id: Optional[int] = None
+    quick_customer: Optional[dict] = None
+    notes: Optional[str] = None
+    items: List[PartsStoreCheckoutItem] = Field(default_factory=list)
+
        
 # ======================================================
 # WORK ORDER OUT (al final para poder referenciar InvoiceOut)
@@ -598,6 +628,7 @@ class InventoryItemBase(BaseModel):
     seasonal: bool = False
 
     cost_price: Decimal = Decimal("0.00")
+    markup_percent: Optional[Decimal] = Decimal("0.00")
     sale_price_base: Decimal = Decimal("0.00")
     price_level_a: Optional[Decimal] = None
     price_level_b: Optional[Decimal] = None

@@ -373,7 +373,14 @@ def create_item(
     if db.execute(exists_stmt).scalar_one_or_none():
         raise HTTPException(status_code=409, detail="part_code already exists")
 
-    item = InventoryItem(**payload.model_dump())
+    data = payload.model_dump()
+    cost = _to_decimal(data.get("cost_price")) or Decimal("0.00")
+    markup = _to_decimal(data.get("markup_percent")) or Decimal("0.00")
+    data["sale_price_base"] = (
+        cost * (Decimal("1") + (markup / Decimal("100")))
+    ).quantize(Decimal("0.01"))
+    item = InventoryItem(**data)
+
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -403,6 +410,12 @@ def update_item(
 
     for k, v in data.items():
         setattr(item, k, v)
+
+    cost = _to_decimal(getattr(item, "cost_price", 0)) or Decimal("0.00")
+    markup = _to_decimal(getattr(item, "markup_percent", 0)) or Decimal("0.00")
+    item.sale_price_base = (
+        cost * (Decimal("1") + (markup / Decimal("100")))
+    ).quantize(Decimal("0.01"))
 
     if hasattr(item, "updated_at"):
         setattr(item, "updated_at", datetime.utcnow())

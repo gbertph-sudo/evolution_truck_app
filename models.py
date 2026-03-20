@@ -373,8 +373,23 @@ class InventoryItem(Base):
     critical_part: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     seasonal: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    cost_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"), nullable=False)
-    sale_price_base: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"), nullable=False)
+    cost_price: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        default=Decimal("0.00"),
+        nullable=False
+    )
+
+    markup_percent: Mapped[Decimal] = mapped_column(
+        Numeric(5, 2),
+        default=Decimal("0.00"),
+        nullable=False
+    )
+
+    sale_price_base: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        default=Decimal("0.00"),
+        nullable=False
+    )
     price_level_a: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
     price_level_b: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
     price_level_c: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)

@@ -84,6 +84,8 @@ def _ensure_editable(inv: Invoice) -> None:
 
 
 def _recalc_invoice(inv: Invoice) -> None:
+    # POS checkout can send discount_percent / price_mode / manual_price per line.
+    # This router already recalculates totals from each saved unit_price and line_total.
     subtotal = Decimal("0.00")
     for it in (inv.items or []):
         subtotal += _q2(it.line_total or Decimal("0.00"))

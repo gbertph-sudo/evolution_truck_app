@@ -88,6 +88,53 @@ function money(v) {
   return `$${n.toFixed(2)}`;
 }
 
+function q2(v) {
+  const n = Number(v || 0);
+  return Number.isFinite(n) ? Number(n.toFixed(2)) : 0;
+}
+
+function calcDiscountedPrice(basePrice, discountPercent) {
+  const base = Number(basePrice || 0);
+  const discount = Number(discountPercent || 0);
+  return q2(base * (1 - (discount / 100)));
+}
+
+function getDiscountOptionLabel(mode) {
+  switch (String(mode || 'NORMAL').toUpperCase()) {
+    case 'DISC_5': return 'Discount 5%';
+    case 'DISC_10': return 'Discount 10%';
+    case 'DISC_15': return 'Discount 15%';
+    case 'MANUAL': return 'Manual Price';
+    default: return 'Normal Price';
+  }
+}
+
+function applyPriceMode(row, mode) {
+  if (!row) return;
+  const normalized = String(mode || 'NORMAL').toUpperCase();
+  row.price_mode = normalized;
+  row.manual_price = normalized === 'MANUAL';
+
+  if (normalized === 'DISC_5') {
+    row.discount_percent = 5;
+    row.unit_price = calcDiscountedPrice(row.base_price, 5);
+  } else if (normalized === 'DISC_10') {
+    row.discount_percent = 10;
+    row.unit_price = calcDiscountedPrice(row.base_price, 10);
+  } else if (normalized === 'DISC_15') {
+    row.discount_percent = 15;
+    row.unit_price = calcDiscountedPrice(row.base_price, 15);
+  } else if (normalized === 'MANUAL') {
+    row.discount_percent = 0;
+    row.unit_price = q2(row.unit_price ?? row.base_price ?? row.sale_price_base ?? 0);
+  } else {
+    row.discount_percent = 0;
+    row.unit_price = q2(row.base_price ?? row.sale_price_base ?? 0);
+    row.price_mode = 'NORMAL';
+    row.manual_price = false
+  }
+}
+
 function showMsg(text, isError = false) {
   const box = $('posMsg');
   box.className = `msg ${isError ? 'err' : 'ok'}`;
@@ -300,7 +347,7 @@ function addToCart(id) {
       showMsg('This item is out of stock.', true);
       return;
     }
-    state.cart.push({ ...part, qty: 1, unit_price: Number(part.sale_price_base || 0), base_price: Number(part.sale_price_base || 0), special_order: stock <= 0 });
+    state.cart.push({ ...part, qty: 1, unit_price: Number(part.sale_price_base || 0), base_price: Number(part.sale_price_base || 0), discount_percent: 0, price_mode: 'NORMAL', manual_price: false, special_order: stock <= 0 });
   }
   clearMsg();
   renderCart();
@@ -334,6 +381,16 @@ function updateUnitPrice(id, value) {
     price = Number(row.unit_price ?? row.sale_price_base ?? 0);
   }
   row.unit_price = Number(price.toFixed(2));
+  row.price_mode = 'MANUAL';
+  row.manual_price = true;
+  row.discount_percent = 0;
+  renderCart();
+}
+
+function updatePriceMode(id, mode) {
+  const row = state.cart.find((x) => Number(x.id) === Number(id));
+  if (!row) return;
+  applyPriceMode(row, mode);
   renderCart();
 }
 
@@ -394,8 +451,17 @@ function renderCart() {
           <div class="cart-code">${row.part_code} · Base: ${money(basePrice)}${special ? ' · <span style="color:#b42318;font-weight:900">OUT OF STOCK / SPECIAL ORDER</span>' : ''}</div>
           <div class="price-editor">
             <div>
-              <input class="price-input" type="number" min="0" step="0.01" value="${currentPrice.toFixed(2)}" data-price-id="${row.id}" />
-              <div class="price-note">${isQuoteMode() ? (special ? 'Allowed in quote mode. If converted without stock, it will go to $0.00 and be marked special order.' : 'Quote mode: inventory is not reserved.') : (changed ? 'Custom sold price saved for this sale.' : 'Using inventory sale price.')}</div>
+              <div class="price-tools">
+                <select class="discount-select" data-discount-id="${row.id}">
+                  <option value="NORMAL" ${String(row.price_mode || 'NORMAL').toUpperCase() === 'NORMAL' ? 'selected' : ''}>Normal</option>
+                  <option value="DISC_5" ${String(row.price_mode || '').toUpperCase() === 'DISC_5' ? 'selected' : ''}>Discount 5%</option>
+                  <option value="DISC_10" ${String(row.price_mode || '').toUpperCase() === 'DISC_10' ? 'selected' : ''}>Discount 10%</option>
+                  <option value="DISC_15" ${String(row.price_mode || '').toUpperCase() === 'DISC_15' ? 'selected' : ''}>Discount 15%</option>
+                  <option value="MANUAL" ${String(row.price_mode || '').toUpperCase() === 'MANUAL' ? 'selected' : ''}>Manual</option>
+                </select>
+                <input class="price-input" type="number" min="0" step="0.01" value="${currentPrice.toFixed(2)}" data-price-id="${row.id}" ${String(row.price_mode || 'NORMAL').toUpperCase() === 'MANUAL' ? '' : 'readonly'} />
+              </div>
+              <div class="price-note">${isQuoteMode() ? (special ? 'Allowed in quote mode. If converted without stock, it will go to $0.00 and be marked special order.' : 'Quote mode: inventory is not reserved.') : (String(row.price_mode || 'NORMAL').toUpperCase() === 'MANUAL' ? 'Manual price enabled. Use with approval.' : `${getDiscountOptionLabel(row.price_mode)} applied automatically.`)}</div>
             </div>
             <div class="line-total">${money(lineTotal)}</div>
           </div>
@@ -414,6 +480,9 @@ function renderCart() {
     });
     box.querySelectorAll('[data-remove-id]').forEach((btn) => {
       btn.addEventListener('click', () => removeCart(Number(btn.dataset.removeId)));
+    });
+    box.querySelectorAll('[data-discount-id]').forEach((select) => {
+      select.addEventListener('change', () => updatePriceMode(Number(select.dataset.discountId), select.value));
     });
     box.querySelectorAll('[data-price-id]').forEach((input) => {
       input.addEventListener('change', () => updateUnitPrice(Number(input.dataset.priceId), input.value));
@@ -461,12 +530,18 @@ function addHistoryInvoiceToCart(invoice){
     if (existing) {
       existing.qty = Math.min(Number(part.quantity_in_stock || 0), existing.qty + qtyToAdd);
       existing.unit_price = Number(src.unit_price ?? existing.unit_price ?? part.sale_price_base ?? 0);
+      existing.price_mode = 'MANUAL';
+      existing.manual_price = true;
+      existing.discount_percent = 0;
     } else {
       state.cart.push({
         ...part,
         qty: Math.min(Number(part.quantity_in_stock || 0), qtyToAdd),
         unit_price: Number(src.unit_price ?? part.sale_price_base ?? 0),
         base_price: Number(part.sale_price_base ?? 0),
+        discount_percent: 0,
+        price_mode: Number(src.unit_price ?? part.sale_price_base ?? 0) !== Number(part.sale_price_base ?? 0) ? 'MANUAL' : 'NORMAL',
+        manual_price: Number(src.unit_price ?? part.sale_price_base ?? 0) !== Number(part.sale_price_base ?? 0),
       });
     }
   }
@@ -676,7 +751,7 @@ async function checkout() {
       email: $('quickCustomerEmail').value.trim(),
     } : null,
     notes: $('saleNotes').value.trim(),
-    items: state.cart.map((row) => ({ item_id: row.id, qty: row.qty, unit_price: Number(row.unit_price ?? row.sale_price_base ?? 0), base_price: Number(row.base_price ?? row.sale_price_base ?? 0) })),
+    items: state.cart.map((row) => ({ item_id: row.id, qty: row.qty, unit_price: Number(row.unit_price ?? row.sale_price_base ?? 0), base_price: Number(row.base_price ?? row.sale_price_base ?? 0), discount_percent: Number(row.discount_percent ?? 0), price_mode: String(row.price_mode || 'NORMAL').toUpperCase(), manual_price: Boolean(row.manual_price) })),
   };
 
   if (state.customerMode === 'EXISTING' && !payload.customer_id) {

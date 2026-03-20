@@ -799,14 +799,19 @@
                 </div>
               </div>
 
-              <div class="row3">
+              <div class="row4">
                 <div>
                   <label>Cost price</label>
                   <input id="cost_price" type="number" step="0.01" min="0" value="0" />
                 </div>
                 <div>
+                  <label>Markup %</label>
+                  <input id="markup_percent" type="number" step="0.01" min="0" value="0" />
+                </div>
+                <div>
                   <label>Sale price base</label>
-                  <input id="sale_price_base" type="number" step="0.01" min="0" value="0" />
+                  <input id="sale_price_base" readonly type="number" step="0.01" min="0" value="0" />
+                  <div class="help">Calculated automatically from cost price and markup %.</div>
                 </div>
                 <div>
                   <label>Taxable</label>
