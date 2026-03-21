@@ -1,16 +1,15 @@
-//* customers.js - Evolution Truck
+// customers.js - Evolution Truck
 // UI en inglés. Comentarios en español.
 
 const API = {
   customers: "/api/customers",
   companies: "/api/companies",
-  toggleActive: (id) => `/api/customers/${id}/active`,
+  vehicles: "/api/vehicles",
 };
 
 const $ = (id) => document.getElementById(id);
 
 function goLogin(){ window.location.href = "/static/index.html"; }
-
 function readToken() {
   return (
     localStorage.getItem("token") ||
@@ -21,15 +20,9 @@ function readToken() {
     ""
   ).trim();
 }
-
 function readTokenType() {
-  return (
-    localStorage.getItem("token_type") ||
-    sessionStorage.getItem("token_type") ||
-    "bearer"
-  ).trim();
+  return (localStorage.getItem("token_type") || sessionStorage.getItem("token_type") || "bearer").trim();
 }
-
 function getAuthHeaders() {
   const token = readToken();
   if (!token) return {};
@@ -37,30 +30,40 @@ function getAuthHeaders() {
   const scheme = raw ? raw[0].toUpperCase() + raw.slice(1).toLowerCase() : "Bearer";
   return { Authorization: `${scheme} ${token}` };
 }
-
+function parseJwt(token) {
+  try {
+    const part = token.split(".")[1];
+    if (!part) return null;
+    const base64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(atob(base64).split("").map(c => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2)).join(""));
+    return JSON.parse(jsonPayload);
+  } catch {
+    return null;
+  }
+}
+function getRoleName() {
+  const payload = parseJwt(readToken());
+  const rn = payload?.role_name || payload?.role || payload?.roleName || localStorage.getItem("role_name") || "";
+  if (typeof rn === "object" && rn && rn.name) return String(rn.name).toUpperCase();
+  return String(rn || "").toUpperCase();
+}
+function isAdminRole(roleName) { return roleName === "ADMIN" || roleName === "SUPERADMIN"; }
 async function handleUnauthorized(res) {
   if (res && res.status === 401) {
-    localStorage.removeItem("token");
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("jwt");
-    localStorage.removeItem("token_type");
-    sessionStorage.removeItem("token");
-    sessionStorage.removeItem("access_token");
-    sessionStorage.removeItem("jwt");
-    sessionStorage.removeItem("token_type");
+    ["token","access_token","jwt","token_type","role_name"].forEach(k => {
+      localStorage.removeItem(k); sessionStorage.removeItem(k);
+    });
     goLogin();
     return true;
   }
   return false;
 }
-
 async function apiGet(url){
   const res = await fetch(url, { headers: { ...getAuthHeaders() }});
   if (await handleUnauthorized(res)) return null;
   if (!res.ok) throw new Error(await res.text());
   return await res.json();
 }
-
 async function apiSend(url, method, payload){
   const opts = { method, headers: { ...getAuthHeaders() } };
   if (payload !== null && payload !== undefined) {
@@ -69,40 +72,74 @@ async function apiSend(url, method, payload){
   }
   const res = await fetch(url, opts);
   if (await handleUnauthorized(res)) return null;
-
   if (res.status === 403) throw new Error("Forbidden: you don't have permission.");
-
   if (!res.ok) throw new Error(await res.text());
   try { return await res.json(); } catch { return null; }
 }
 
-function setPill(id, text){ const el = $(id); if (el) el.textContent = text; }
 function setMsg(text, isError=false){
   const el = $("msg"); if (!el) return;
   el.textContent = text || "";
   el.style.color = isError ? "crimson" : "green";
 }
 
-function getSelectedCompanyIds(){
-  const sel = $("company_ids");
-  if (!sel) return [];
-  return Array.from(sel.selectedOptions)
-    .map(o => parseInt(o.value, 10))
-    .filter(n => Number.isFinite(n));
+let companies = [];
+let customers = [];
+let editingCustomerId = null;
+let roleName = "";
+let isAdminUser = false;
+
+function selectedCompanyIdsFromBox(){
+  return Array.from(document.querySelectorAll('#companyBox input[type="checkbox"]:checked'))
+    .map(el => parseInt(el.value, 10))
+    .filter(Number.isFinite);
 }
 
-function renderCompaniesSelect(list){
-  const sel = $("company_ids");
-  if (!sel) return;
-
-  if (!list || !list.length) {
-    sel.innerHTML = "";
+function renderCompanyBox(list, selectedIds = []) {
+  const box = $("companyBox");
+  if (!box) return;
+  if (!list.length) {
+    box.innerHTML = '<div class="muted">No companies available.</div>';
     return;
   }
+  const selected = new Set((selectedIds || []).map(Number));
+  box.innerHTML = list.map(c => `
+    <label class="company-item">
+      <input type="checkbox" value="${c.id}" ${selected.has(Number(c.id)) ? "checked" : ""} />
+      <span><b>#${c.id}</b> - ${c.name ?? ""}</span>
+    </label>
+  `).join("");
+}
 
-  sel.innerHTML = list
-    .map(c => `<option value="${c.id}">${c.name ?? `Company ${c.id}`}</option>`)
-    .join("");
+function filterCompanyBox() {
+  const q = ($("companyFilter")?.value || "").trim().toLowerCase();
+  const filtered = !q ? companies : companies.filter(c => `${c.id} ${c.name || ""}`.toLowerCase().includes(q));
+  renderCompanyBox(filtered, selectedCompanyIdsFromBox());
+}
+
+function clearCustomerForm() {
+  editingCustomerId = null;
+  ["name","phone","email","v_vin","v_unit","v_year","v_make","v_model","companyFilter","q"].forEach(id => { if ($(id) && ["q"].indexOf(id) === -1) $(id).value = id === "q" ? $(id).value : ""; });
+  if ($("chkAddVehicleNow")) $("chkAddVehicleNow").checked = false;
+  if ($("vehicleQuickWrap")) $("vehicleQuickWrap").style.display = "none";
+  $("btnCreate").textContent = "Create Customer";
+  $("formTitle").textContent = "Create Customer";
+  $("btnCancelEdit").style.display = "none";
+  renderCompanyBox(companies, []);
+}
+
+function fillCustomerForm(customer) {
+  editingCustomerId = customer.id;
+  $("name").value = customer.name || "";
+  $("phone").value = customer.phone || "";
+  $("email").value = customer.email || "";
+  $("btnCreate").textContent = "Save Changes";
+  $("formTitle").textContent = `Edit Customer #${customer.id}`;
+  $("btnCancelEdit").style.display = "inline-block";
+  renderCompanyBox(companies, customer.company_ids || (customer.companies || []).map(x => x.id));
+  if ($("chkAddVehicleNow")) $("chkAddVehicleNow").checked = false;
+  if ($("vehicleQuickWrap")) $("vehicleQuickWrap").style.display = "none";
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function renderCustomersTable(list){
@@ -110,17 +147,13 @@ function renderCustomersTable(list){
   if (!tbody) return;
 
   if (!Array.isArray(list) || list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="muted">No customers.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="muted">No customers.</td></tr>';
     return;
   }
 
   tbody.innerHTML = list.map(c => {
     const comps = (c.companies || []).map(x => x.name).filter(Boolean).join(", ");
-    const active = (c.is_active !== false); // default true si no viene
-    const status = active ? "ACTIVE" : "INACTIVE";
-    const btnText = active ? "Deactivate" : "Activate";
-    const btnClass = active ? "ghost" : ""; // si quieres, lo cambias
-
+    const active = (c.is_active !== false);
     return `
       <tr>
         <td>${c.id}</td>
@@ -128,119 +161,140 @@ function renderCustomersTable(list){
         <td>${comps || "—"}</td>
         <td>${c.phone ?? "—"}</td>
         <td>${c.email ?? "—"}</td>
-        <td><b>${status}</b></td>
+        <td><b>${active ? "ACTIVE" : "INACTIVE"}</b></td>
         <td>
-          <button
-            type="button"
-            class="${btnClass}"
-            data-toggle-id="${c.id}"
-            data-next="${active ? "0" : "1"}"
-            style="padding:8px 10px; border-radius:10px;"
-          >${btnText}</button>
+          <button type="button" class="ghost" data-edit-id="${c.id}">Edit</button>
+          ${isAdminUser ? `<button type="button" data-delete-id="${c.id}" style="margin-left:8px;">Delete</button>` : ""}
         </td>
       </tr>
     `;
   }).join("");
 
-  // Hook de botones
-  tbody.querySelectorAll("button[data-toggle-id]").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const id = parseInt(btn.getAttribute("data-toggle-id"), 10);
-      const next = btn.getAttribute("data-next") === "1";
-
-      const ok = confirm(`Are you sure you want to ${next ? "ACTIVATE" : "DEACTIVATE"} this customer?`);
-      if (!ok) return;
-
-      try {
-        setMsg("Saving...");
-        await apiSend(API.toggleActive(id), "PATCH", { is_active: next });
-        setMsg("Saved ✅");
-        await refreshCustomersOnly();
-      } catch (e) {
-        console.error(e);
-        setMsg(String(e?.message || "Error"), true);
-      }
-    });
-  });
+  tbody.querySelectorAll("[data-edit-id]").forEach(btn => btn.addEventListener("click", () => {
+    const c = customers.find(x => Number(x.id) === Number(btn.dataset.editId));
+    if (c) fillCustomerForm(c);
+  }));
+  tbody.querySelectorAll("[data-delete-id]").forEach(btn => btn.addEventListener("click", () => deleteCustomer(btn.dataset.deleteId)));
 }
 
 async function loadCompanies(){
-  const data = await apiGet(API.companies);
-  if (!data) return [];
-  return Array.isArray(data) ? data : [];
+  companies = (await apiGet(API.companies)) || [];
+  renderCompanyBox(companies, selectedCompanyIdsFromBox());
 }
 
 async function loadCustomers(){
-  const showInactive = !!$("chkShowInactive")?.checked;
-  const url = showInactive ? `${API.customers}?include_inactive=true` : API.customers;
-
-  const data = await apiGet(url);
-  if (!data) return [];
-  return Array.isArray(data) ? data : [];
+  const q = ($("q")?.value || "").trim();
+  const includeInactive = $("chkShowInactive")?.checked ? "true" : "false";
+  const url = `${API.customers}?include_inactive=${includeInactive}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+  customers = (await apiGet(url)) || [];
+  renderCustomersTable(customers);
 }
 
-async function refreshCustomersOnly(){
-  const custs = await loadCustomers();
-  renderCustomersTable(custs);
-}
-
-async function refreshAll(){
-  try{
-    setPill("apiStatus","API: checking...");
-
-    const comps = await loadCompanies();
-    const custs = await loadCustomers();
-
-    setPill("apiStatus","API: OK");
-
-    renderCompaniesSelect(comps);
-    renderCustomersTable(custs);
-
-  } catch (e){
-    console.error(e);
-    setPill("apiStatus","API: ERROR");
-    setMsg("API error. Check console.", true);
+async function createQuickCompany(){
+  const name = prompt("New company name:");
+  if (!name || !name.trim()) return;
+  try {
+    await apiSend(API.companies, "POST", { name: name.trim() });
+    await loadCompanies();
+    setMsg("Company created ✅");
+  } catch (err) {
+    setMsg(String(err?.message || err || "Error"), true);
   }
 }
 
-async function createCustomer(){
-  const name = ($("name")?.value || "").trim();
-  if (!name) { setMsg("Name is required.", true); return; }
-
-  const payload = {
-    name,
+function getCustomerPayload() {
+  return {
+    name: ($("name")?.value || "").trim(),
     phone: ($("phone")?.value || "").trim() || null,
     email: ($("email")?.value || "").trim() || null,
-    company_ids: getSelectedCompanyIds(),
+    company_ids: selectedCompanyIdsFromBox(),
   };
+}
 
-  try{
-    setMsg("Creating...");
-    const saved = await apiSend(API.customers, "POST", payload);
-    if (!saved) return;
+function getVehicleQuickPayload(customerId) {
+  return {
+    vin: ($("v_vin")?.value || "").trim() || null,
+    unit_number: ($("v_unit")?.value || "").trim() || null,
+    year: ($("v_year")?.value || "").trim() ? Number(("" + $("v_year").value).trim()) : null,
+    make: ($("v_make")?.value || "").trim() || null,
+    model: ($("v_model")?.value || "").trim() || null,
+    customer_id: customerId,
+  };
+}
 
-    setMsg("Created ✅");
-    $("name").value = "";
-    $("phone").value = "";
-    $("email").value = "";
-    Array.from($("company_ids").options).forEach(o => o.selected = false);
+function vehicleQuickHasData() {
+  return ["v_vin","v_unit","v_year","v_make","v_model"].some(id => ($(id)?.value || "").trim() !== "");
+}
 
-    await refreshCustomersOnly();
-  } catch (e){
-    console.error(e);
-    setMsg("Create error. Check console.", true);
+async function saveCustomer(){
+  const payload = getCustomerPayload();
+  if (!payload.name) {
+    setMsg("Customer name is required.", true);
+    return;
+  }
+
+  try {
+    let customer;
+    if (editingCustomerId) {
+      setMsg("Saving customer...");
+      customer = await apiSend(`${API.customers}/${editingCustomerId}`, "PATCH", payload);
+    } else {
+      setMsg("Creating customer...");
+      customer = await apiSend(API.customers, "POST", payload);
+    }
+    if (!customer) return;
+
+    if (!editingCustomerId && $("chkAddVehicleNow")?.checked && vehicleQuickHasData()) {
+      await apiSend(API.vehicles, "POST", getVehicleQuickPayload(customer.id));
+    }
+
+    setMsg(editingCustomerId ? "Customer updated ✅" : "Customer created ✅");
+    clearCustomerForm();
+    await loadCustomers();
+  } catch (err) {
+    console.error(err);
+    setMsg(String(err?.message || err || "Error"), true);
+  }
+}
+
+async function deleteCustomer(id) {
+  if (!isAdminUser) {
+    setMsg("Only ADMIN or SUPERADMIN can delete customers.", true);
+    return;
+  }
+  const customer = customers.find(x => Number(x.id) === Number(id));
+  const label = customer?.name || `#${id}`;
+  if (!confirm(`Delete customer ${label}? This cannot be undone.`)) return;
+  try {
+    setMsg("Deleting customer...");
+    await apiSend(`${API.customers}/${id}`, "DELETE");
+    if (Number(editingCustomerId) === Number(id)) clearCustomerForm();
+    setMsg("Customer deleted ✅");
+    await loadCustomers();
+  } catch (err) {
+    console.error(err);
+    setMsg(String(err?.message || err || "Error"), true);
   }
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
   if (!readToken()) { goLogin(); return; }
+  roleName = getRoleName();
+  isAdminUser = isAdminRole(roleName);
 
-  $("btnBack")?.addEventListener("click", () => window.location.href = "/static/dashboard.html");
-  $("btnRefresh")?.addEventListener("click", refreshAll);
-  $("btnCreate")?.addEventListener("click", createCustomer);
+  $("btnBack")?.addEventListener("click", () => { window.location.href = "/static/dashboard.html"; });
+  $("btnCreate")?.addEventListener("click", saveCustomer);
+  $("btnRefresh")?.addEventListener("click", loadCustomers);
+  $("btnQuickAddCompany")?.addEventListener("click", createQuickCompany);
+  $("btnCancelEdit")?.addEventListener("click", clearCustomerForm);
+  $("companyFilter")?.addEventListener("input", filterCompanyBox);
+  $("q")?.addEventListener("input", loadCustomers);
+  $("chkShowInactive")?.addEventListener("change", loadCustomers);
+  $("chkAddVehicleNow")?.addEventListener("change", (e) => {
+    $("vehicleQuickWrap").style.display = e.target.checked ? "block" : "none";
+  });
 
-  // ✅ checkbox show inactive
-  $("chkShowInactive")?.addEventListener("change", refreshCustomersOnly);
-
-  await refreshAll();
+  await loadCompanies();
+  await loadCustomers();
+  clearCustomerForm();
 });

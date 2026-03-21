@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -17,10 +17,7 @@ from security import require_roles
 
 router = APIRouter(prefix="/companies", tags=["Companies"])
 
-# Ajusta si quieres: quién puede crear/editar/borrar companies
 COMPANY_ADMIN_ROLES = ["SUPERADMIN", "ADMIN"]
-
-# Roles que pueden ver companies
 COMPANY_VIEW_ROLES = ["SUPERADMIN", "ADMIN", "ACCOUNTANT", "VENDEDOR", "MECANICO"]
 
 
@@ -34,18 +31,17 @@ def create_company(
     if not name:
         raise HTTPException(status_code=422, detail="Company name is required")
 
-    # ✅ evita duplicados por mayúsculas/minúsculas
     exists = db.execute(
         select(Company.id).where(func.lower(Company.name) == func.lower(name))
     ).scalar_one_or_none()
     if exists:
         raise HTTPException(status_code=409, detail="Company already exists")
 
-    c = Company(name=name)
-    db.add(c)
+    company = Company(name=name)
+    db.add(company)
     db.commit()
-    db.refresh(c)
-    return c
+    db.refresh(company)
+    return company
 
 
 @router.get("", response_model=list[CompanyOut])
@@ -54,11 +50,10 @@ def list_companies(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*COMPANY_VIEW_ROLES)),
 ):
-    stmt = select(Company).order_by(Company.name.asc())
+    stmt = select(Company).order_by(Company.id.asc())
     if q:
         like = f"%{q.strip()}%"
         stmt = stmt.where(Company.name.ilike(like))
-
     return list(db.execute(stmt).scalars().all())
 
 
@@ -68,10 +63,10 @@ def get_company(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*COMPANY_VIEW_ROLES)),
 ):
-    c = db.get(Company, company_id)
-    if not c:
+    company = db.get(Company, company_id)
+    if not company:
         raise HTTPException(status_code=404, detail="Company not found")
-    return c
+    return company
 
 
 @router.patch("/{company_id}", response_model=CompanyOut)
@@ -79,10 +74,10 @@ def update_company(
     company_id: int,
     payload: CompanyCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*COMPANY_ADMIN_ROLES)),
+    current_user: User = Depends(require_roles(*COMPANY_VIEW_ROLES)),
 ):
-    c = db.get(Company, company_id)
-    if not c:
+    company = db.get(Company, company_id)
+    if not company:
         raise HTTPException(status_code=404, detail="Company not found")
 
     name = (payload.name or "").strip()
@@ -98,14 +93,14 @@ def update_company(
     if exists:
         raise HTTPException(status_code=409, detail="Company already exists")
 
-    c.name = name
-    if hasattr(c, "updated_at"):
-        c.updated_at = datetime.utcnow()
+    company.name = name
+    if hasattr(company, "updated_at"):
+        company.updated_at = datetime.utcnow()
 
-    db.add(c)
+    db.add(company)
     db.commit()
-    db.refresh(c)
-    return c
+    db.refresh(company)
+    return company
 
 
 @router.delete("/{company_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -114,10 +109,10 @@ def delete_company(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*COMPANY_ADMIN_ROLES)),
 ):
-    c = db.get(Company, company_id)
-    if not c:
+    company = db.get(Company, company_id)
+    if not company:
         raise HTTPException(status_code=404, detail="Company not found")
 
-    db.delete(c)
+    db.delete(company)
     db.commit()
     return

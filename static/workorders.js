@@ -388,6 +388,10 @@ function fillMechanics(selectId, selectedId=null){
   if (selectedId) sel.value = String(selectedId);
 }
 
+function laborMechanicLabel(lb){
+  return lb?.mechanic_name || lb?.mechanic?.full_name || lb?.mechanic?.username || "-";
+}
+
 // --------------------
 // Tabs
 // --------------------
@@ -754,18 +758,34 @@ function renderWOLabor(wo){
   if (!tb) return;
   const rows = wo.labors || [];
   if (!rows.length){
-    tb.innerHTML = `<tr><td colspan="5" class="muted">No labor lines yet.</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="6" class="muted">No labor lines yet.</td></tr>`;
     return;
   }
-  tb.innerHTML = rows.map(lb => `
-    <tr>
-      <td><input data-labor-desc="${lb.id}" style="min-width:260px;" value="${escapeHtml(lb.description || "")}" /></td>
-      <td class="rightNum"><input data-labor-hours="${lb.id}" style="min-width:90px;" value="${Number(lb.hours ?? 0)}" /></td>
-      <td class="rightNum"><input data-labor-rate="${lb.id}" style="min-width:100px;" value="${Number(lb.rate ?? 0).toFixed(2)}" /></td>
-      <td class="rightNum">${money(lb.line_total)}</td>
-      <td><div class="actions"><button class="ghost" data-labor-save="${lb.id}">Save</button><button class="secondary" data-labor-del="${lb.id}">Delete</button></div></td>
-    </tr>
-  `).join("");
+  tb.innerHTML = rows.map(lb => {
+    const options = [`<option value="">System mechanic...</option>`].concat(
+      USERS
+        .filter(u => u.is_active !== false)
+        .sort((a,b) => (a.full_name||a.username||"").localeCompare(b.full_name||b.username||""))
+        .map(u => `<option value="${u.id}" ${Number(lb.mechanic_id||0)===Number(u.id)?"selected":""}>${escapeHtml(u.full_name || u.username)}</option>`)
+    ).join("");
+
+    return `
+      <tr>
+        <td><input data-labor-desc="${lb.id}" style="min-width:260px;" value="${escapeHtml(lb.description || "")}" /></td>
+        <td>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+            <select data-labor-mechanic="${lb.id}" style="min-width:180px;">${options}</select>
+            <input data-labor-mechanic-name="${lb.id}" style="min-width:180px;" placeholder="Custom mechanic name" value="${escapeHtml(lb.mechanic_name || "")}" />
+          </div>
+          <div class="muted small" style="margin-top:4px;">Current: ${escapeHtml(laborMechanicLabel(lb))}</div>
+        </td>
+        <td class="rightNum"><input data-labor-hours="${lb.id}" style="min-width:90px;" value="${Number(lb.hours ?? 0)}" /></td>
+        <td class="rightNum"><input data-labor-rate="${lb.id}" style="min-width:100px;" value="${Number(lb.rate ?? 0).toFixed(2)}" /></td>
+        <td class="rightNum">${money(lb.line_total)}</td>
+        <td><div class="actions"><button class="ghost" data-labor-save="${lb.id}">Save</button><button class="secondary" data-labor-del="${lb.id}">Delete</button></div></td>
+      </tr>
+    `;
+  }).join("");
 
   tb.querySelectorAll("button[data-labor-save]").forEach(b=>{
     b.addEventListener("click", async ()=>{
@@ -776,6 +796,8 @@ function renderWOLabor(wo){
           method:"PATCH", headers: authHeaders(),
           body: JSON.stringify({
             description: tb.querySelector(`input[data-labor-desc="${id}"]`)?.value || "",
+            mechanic_id: tb.querySelector(`select[data-labor-mechanic="${id}"]`)?.value || null,
+            mechanic_name: tb.querySelector(`input[data-labor-mechanic-name="${id}"]`)?.value || null,
             hours: tb.querySelector(`input[data-labor-hours="${id}"]`)?.value || 0,
             rate: tb.querySelector(`input[data-labor-rate="${id}"]`)?.value || 0,
           })
@@ -1218,9 +1240,15 @@ async function init(){
       setMsg("detailsMsg", "Adding labor...");
       await apiFetch(urlWOLabors(CURRENT_WO.id), {
         method:"POST", headers: authHeaders(),
-        body: JSON.stringify({ description: $("laborDesc").value || "", hours: $("laborHours").value || 0, rate: $("laborRate").value || 0 })
+        body: JSON.stringify({
+          description: $("laborDesc").value || "",
+          mechanic_id: $("laborMechanic").value || null,
+          mechanic_name: $("laborMechanicName").value || null,
+          hours: $("laborHours").value || 0,
+          rate: $("laborRate").value || 0
+        })
       });
-      $("laborDesc").value = ""; $("laborHours").value = "1"; $("laborRate").value = "0";
+      $("laborDesc").value = ""; $("laborMechanic").value = ""; $("laborMechanicName").value = ""; $("laborHours").value = "1"; $("laborRate").value = "0";
       await refreshDetails();
       setTab("labor");
       setMsg("detailsMsg", "Labor added.", false);
@@ -1249,6 +1277,7 @@ async function init(){
     fillCompanyForCustomer("companySelect", null, null);
     fillVehiclesForCustomer("vehicleSelect", null, null);
     fillMechanics("mechanicSelect", null);
+    fillMechanics("laborMechanic", null);
 
     // details modal base (se rellenan al abrir)
     fillCustomerSelect("detailsCustomer", null);

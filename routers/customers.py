@@ -6,28 +6,27 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status, Body
-from sqlalchemy import select, or_
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import Customer, Company, User
-from schemas import CustomerCreate, CustomerUpdate, CustomerOut
+from models import Company, Customer, User
+from schemas import CustomerCreate, CustomerOut, CustomerUpdate
 from security import require_roles
 
 router = APIRouter(prefix="/customers", tags=["Customers"])
 
 CUSTOMER_ROLES = ["SUPERADMIN", "ADMIN", "ACCOUNTANT", "VENDEDOR", "MECANICO"]
-CUSTOMER_ADMIN_ROLES = ["SUPERADMIN", "ADMIN"]  # solo estos pueden activar/desactivar (si quieres)
+CUSTOMER_ADMIN_ROLES = ["SUPERADMIN", "ADMIN"]
 
 
-def _fill_customer_company_ids(c: Customer) -> Customer:
-    # ✅ Para que el schema CustomerOut reciba company_ids listo
+def _fill_customer_company_ids(customer: Customer) -> Customer:
     try:
-        c.company_ids = [x.id for x in (c.companies or [])]  # type: ignore[attr-defined]
+        customer.company_ids = [x.id for x in (customer.companies or [])]  # type: ignore[attr-defined]
     except Exception:
         pass
-    return c
+    return customer
 
 
 def _load_companies_by_ids(db: Session, ids: list[int]) -> list[Company]:
@@ -51,24 +50,20 @@ def create_customer(
     if not name:
         raise HTTPException(status_code=422, detail="Customer name is required")
 
-    c = Customer(
+    customer = Customer(
         name=name,
         phone=payload.phone,
         email=str(payload.email) if payload.email else None,
     )
-
-    # ✅ Si existe is_active en el modelo, por defecto activo
     if hasattr(Customer, "is_active"):
-        c.is_active = True  # type: ignore[attr-defined]
+        customer.is_active = True  # type: ignore[attr-defined]
 
-    # ✅ set companies (many-to-many)
-    companies = _load_companies_by_ids(db, payload.company_ids or [])
-    c.companies = companies
+    customer.companies = _load_companies_by_ids(db, payload.company_ids or [])
 
-    db.add(c)
+    db.add(customer)
     db.commit()
-    db.refresh(c)
-    return _fill_customer_company_ids(c)
+    db.refresh(customer)
+    return _fill_customer_company_ids(customer)
 
 
 @router.get("", response_model=list[CustomerOut])
@@ -78,15 +73,13 @@ def list_customers(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*CUSTOMER_ROLES)),
 ):
-    stmt = select(Customer).order_by(Customer.name.asc())
+    stmt = select(Customer).order_by(Customer.id.asc())
 
-    # ✅ Por defecto: solo activos (si existe is_active)
     if hasattr(Customer, "is_active") and not include_inactive:
         stmt = stmt.where(Customer.is_active.is_(True))  # type: ignore[attr-defined]
 
     if q:
         like = f"%{q.strip()}%"
-        # evita ilike sobre None
         stmt = stmt.where(
             or_(
                 Customer.name.ilike(like),
@@ -105,12 +98,10 @@ def get_customer(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*CUSTOMER_ROLES)),
 ):
-    c = db.get(Customer, customer_id)
-    if not c:
+    customer = db.get(Customer, customer_id)
+    if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
-
-    # si existe is_active y está inactivo, igual lo devolvemos (para editar / ver historial)
-    return _fill_customer_company_ids(c)
+    return _fill_customer_company_ids(customer)
 
 
 @router.patch("/{customer_id}", response_model=CustomerOut)
@@ -120,8 +111,8 @@ def update_customer(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*CUSTOMER_ROLES)),
 ):
-    c = db.get(Customer, customer_id)
-    if not c:
+    customer = db.get(Customer, customer_id)
+    if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
 
     data = payload.model_dump(exclude_unset=True)
@@ -130,29 +121,29 @@ def update_customer(
         name = str(data["name"]).strip()
         if not name:
             raise HTTPException(status_code=422, detail="Customer name is required")
-        c.name = name
+        customer.name = name
 
     if "phone" in data:
-        c.phone = data["phone"]
+        customer.phone = data["phone"]
 
     if "email" in data:
-        c.email = str(data["email"]) if data["email"] else None
+        customer.email = str(data["email"]) if data["email"] else None
 
-    # ✅ si viene company_ids, reemplaza lista completa
     if "company_ids" in data and data["company_ids"] is not None:
-        companies = _load_companies_by_ids(db, data["company_ids"])
-        c.companies = companies
+        customer.companies = _load_companies_by_ids(db, data["company_ids"])
 
-    if hasattr(c, "updated_at"):
-        c.updated_at = datetime.utcnow()
+    if "is_active" in data and hasattr(customer, "is_active"):
+        customer.is_active = bool(data["is_active"])  # type: ignore[attr-defined]
 
-    db.add(c)
+    if hasattr(customer, "updated_at"):
+        customer.updated_at = datetime.utcnow()
+
+    db.add(customer)
     db.commit()
-    db.refresh(c)
-    return _fill_customer_company_ids(c)
+    db.refresh(customer)
+    return _fill_customer_company_ids(customer)
 
 
-# ✅ ACTIVAR / DESACTIVAR (NO BORRAR)
 @router.patch("/{customer_id}/active")
 def toggle_customer_active(
     customer_id: int,
@@ -160,70 +151,35 @@ def toggle_customer_active(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*CUSTOMER_ADMIN_ROLES)),
 ):
-    c = db.get(Customer, customer_id)
-    if not c:
+    customer = db.get(Customer, customer_id)
+    if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
 
-    if not hasattr(c, "is_active"):
-        raise HTTPException(status_code=400, detail="Customer.is_active not available (missing DB column)")
-
+    if not hasattr(customer, "is_active"):
+        raise HTTPException(status_code=400, detail="Customer.is_active not available")
     if "is_active" not in body:
         raise HTTPException(status_code=422, detail="is_active required")
 
-    c.is_active = bool(body["is_active"])  # type: ignore[attr-defined]
+    customer.is_active = bool(body["is_active"])  # type: ignore[attr-defined]
+    if hasattr(customer, "updated_at"):
+        customer.updated_at = datetime.utcnow()
 
-    if hasattr(c, "updated_at"):
-        c.updated_at = datetime.utcnow()
-
-    db.add(c)
+    db.add(customer)
     db.commit()
-    db.refresh(c)
-
-    return {"id": c.id, "is_active": bool(getattr(c, "is_active", True))}
-
-@router.get("", response_model=list[CustomerOut])
-def list_customers(
-    q: Optional[str] = Query(default=None),
-    include_inactive: bool = Query(default=False),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*CUSTOMER_ROLES)),
-):
-    stmt = select(Customer).order_by(Customer.name.asc())
-
-    if not include_inactive and hasattr(Customer, "is_active"):
-        stmt = stmt.where(Customer.is_active.is_(True))
-
-    if q:
-        like = f"%{q.strip()}%"
-        stmt = stmt.where(
-            (Customer.name.ilike(like)) |
-            (Customer.phone.ilike(like)) |
-            (Customer.email.ilike(like))
-        )
-
-    rows = list(db.execute(stmt).scalars().all())
-    return [_fill_customer_company_ids(x) for x in rows]
+    db.refresh(customer)
+    return {"id": customer.id, "is_active": bool(getattr(customer, "is_active", True))}
 
 
-@router.patch("/{customer_id}/active")
-def toggle_customer_active(
+@router.delete("/{customer_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_customer(
     customer_id: int,
-    body: dict = Body(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("SUPERADMIN", "ADMIN")),
+    current_user: User = Depends(require_roles(*CUSTOMER_ADMIN_ROLES)),
 ):
-    c = db.get(Customer, customer_id)
-    if not c:
+    customer = db.get(Customer, customer_id)
+    if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
 
-    if "is_active" not in body:
-        raise HTTPException(status_code=422, detail="is_active required")
-
-    c.is_active = bool(body["is_active"])
-    if hasattr(c, "updated_at"):
-        c.updated_at = datetime.utcnow()
-
-    db.add(c)
+    db.delete(customer)
     db.commit()
-    db.refresh(c)
-    return {"id": c.id, "is_active": c.is_active}
+    return

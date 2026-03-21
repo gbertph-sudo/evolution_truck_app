@@ -249,11 +249,15 @@ class WorkOrderItemOut(BaseModel):
 
 class WorkOrderLaborCreate(BaseModel):
     description: str
+    mechanic_id: Optional[int] = None
+    mechanic_name: Optional[str] = None
     hours: Decimal = Field(default=Decimal("1.00"), ge=0)
     rate: Decimal = Field(default=Decimal("0.00"), ge=0)
 
 class WorkOrderLaborUpdate(BaseModel):
     description: Optional[str] = None
+    mechanic_id: Optional[int] = None
+    mechanic_name: Optional[str] = None
     hours: Optional[Decimal] = Field(default=None, ge=0)
     rate: Optional[Decimal] = Field(default=None, ge=0)
 
@@ -263,6 +267,9 @@ class WorkOrderLaborOut(BaseModel):
     id: int
     work_order_id: int
     description: str
+    mechanic_id: Optional[int] = None
+    mechanic_name: Optional[str] = None
+    mechanic: Optional[UserOut] = None
     hours: Decimal
     rate: Decimal
     line_total: Decimal
@@ -680,6 +687,7 @@ class InventoryItemUpdate(BaseModel):
     seasonal: Optional[bool] = None
 
     cost_price: Optional[Decimal] = None
+    markup_percent: Optional[Decimal] = None
     sale_price_base: Optional[Decimal] = None
     price_level_a: Optional[Decimal] = None
     price_level_b: Optional[Decimal] = None

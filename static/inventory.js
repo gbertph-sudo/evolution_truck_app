@@ -345,6 +345,12 @@ function statusChip(item) {
   return '<span class="chip ok">OK</span>';
 }
 
+function formatDisplayCode(item) {
+  const itemId = item?.id ?? "";
+  const partCode = item?.part_code ?? "";
+  return itemId ? `#${itemId} - ${partCode}` : partCode;
+}
+
 function renderTable(list) {
   const tbody = $("itemsTbody");
   if (!tbody) return;
@@ -369,7 +375,7 @@ function renderTable(list) {
 
     return `
       <tr class="${isInactive ? "inactive-row" : ""}">
-        <td><b class="${isInactive ? "inactive-text" : ""}">${item.part_code ?? ""}</b></td>
+        <td><b class="${isInactive ? "inactive-text" : ""}">${formatDisplayCode(item)}</b></td>
         <td><span class="${isInactive ? "inactive-text" : ""}">${item.part_name ?? ""}</span></td>
         <td>${qty}</td>
         <td>${min}</td>
@@ -447,11 +453,13 @@ function applyFiltersAndRender() {
     if (!q) return true;
 
     const hay = [
-      it.part_code, it.part_name, it.brand, it.category, it.sub_category, it.oem_reference
+      it.id, it.part_code, it.part_name, it.brand, it.category, it.sub_category, it.oem_reference
     ].map(x => String(x ?? "").toLowerCase()).join(" | ");
 
     return hay.includes(q);
   });
+
+  filtered.sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
 
   renderTable(filtered);
   setPill("itemsCount", `Items: ${filtered.length}`);
@@ -465,6 +473,7 @@ async function loadInventory() {
     if (!data) return;
 
     items = Array.isArray(data) ? data : (data.items ?? []);
+    items.sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
 
     setPill("apiStatus", "API: OK");
     setPill("itemsCount", `Items: ${items.length}`);
@@ -773,7 +782,12 @@ async function doAdjustStock() {
     if (isAdminUser) await loadMovements();
 
     const item = items.find(x => x.id === currentItemId);
-    if (item) $("quantity_in_stock").value = item.quantity_in_stock ?? 0;
+    if (item) {
+      $("quantity_in_stock").value = item.quantity_in_stock ?? 0;
+      $("cost_price").value = item.cost_price ?? 0;
+      if ($("markup_percent")) $("markup_percent").value = item.markup_percent ?? 0;
+      $("sale_price_base").value = item.sale_price_base ?? 0;
+    }
 
   } catch (err) {
     console.error(err);

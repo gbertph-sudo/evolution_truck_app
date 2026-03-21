@@ -148,6 +148,7 @@
   <div class="wrap" style="max-width:100%; margin:0; padding:0;">
     <div class="wrap"><!-- CREATE (rápido) -->
     <section class="card">
+      <h2 id="formTitle" style="margin-top:0;">Create Customer</h2>
       <div class="row" style="justify-content:space-between; align-items:center;">
         <h2 style="margin:0;">Quick Create</h2>
         <span id="msg" class="muted"></span>
@@ -185,7 +186,10 @@
 
         <div class="col" style="max-width:260px;">
           <label>&nbsp;</label>
-          <button id="btnCreate" type="button">Create Customer</button>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button id="btnCreate" type="button">Create Customer</button>
+            <button id="btnCancelEdit" class="ghost" type="button" style="display:none;">Cancel Edit</button>
+          </div>
 
           <div style="margin-top:10px;">
             <label class="inline-check">
@@ -251,7 +255,7 @@
             <th style="width:140px;">Phone</th>
             <th style="width:220px;">Email</th>
             <th style="width:110px;">Status</th>
-            <th style="width:220px;">Action</th>
+            <th style="width:240px;">Action</th>
           </tr>
         </thead>
         <tbody id="tbody">

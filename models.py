@@ -233,12 +233,19 @@ class WorkOrderLabor(Base):
         index=True,
     )
     description: Mapped[str] = mapped_column(String(255), nullable=False)
+    mechanic_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    mechanic_name: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
     hours: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
     rate: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
     line_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     work_order: Mapped["WorkOrder"] = relationship("WorkOrder", back_populates="labors")
+    mechanic: Mapped[Optional["User"]] = relationship("User")
 
 
 # ======================================================

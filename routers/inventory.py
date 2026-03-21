@@ -102,6 +102,28 @@ def _weighted_average_cost(old_qty: int, old_cost: Decimal, in_qty: int, in_unit
     return new_cost.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
+def _calculate_sale_price(cost_raw, markup_raw) -> Decimal:
+    cost = _to_decimal(cost_raw) or Decimal("0.00")
+    markup = _to_decimal(markup_raw) or Decimal("0.00")
+    return (
+        cost * (Decimal("1") + (markup / Decimal("100")))
+    ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def _recalculate_sale_price(item: InventoryItem, preserve_highest: bool = False) -> Decimal:
+    calculated = _calculate_sale_price(
+        getattr(item, "cost_price", Decimal("0.00")),
+        getattr(item, "markup_percent", Decimal("0.00")),
+    )
+
+    if preserve_highest:
+        current_sale = _to_decimal(getattr(item, "sale_price_base", None)) or Decimal("0.00")
+        calculated = max(current_sale, calculated)
+
+    item.sale_price_base = calculated
+    return calculated
+
+
 def _normalize_movement_type(v: Optional[str]) -> str:
     """
     Normaliza a lo que guarda DB:
@@ -186,6 +208,7 @@ def _apply_movement_to_item(
         item.cost_price = new_cost
         item.last_purchase_price = unit_cost
         item.last_purchase_date = date.today()
+        _recalculate_sale_price(item, preserve_highest=True)
 
         new_qty = old_qty + qty
 
@@ -374,11 +397,10 @@ def create_item(
         raise HTTPException(status_code=409, detail="part_code already exists")
 
     data = payload.model_dump()
-    cost = _to_decimal(data.get("cost_price")) or Decimal("0.00")
-    markup = _to_decimal(data.get("markup_percent")) or Decimal("0.00")
-    data["sale_price_base"] = (
-        cost * (Decimal("1") + (markup / Decimal("100")))
-    ).quantize(Decimal("0.01"))
+    data["sale_price_base"] = _calculate_sale_price(
+        data.get("cost_price"),
+        data.get("markup_percent"),
+    )
     item = InventoryItem(**data)
 
     db.add(item)
@@ -411,11 +433,7 @@ def update_item(
     for k, v in data.items():
         setattr(item, k, v)
 
-    cost = _to_decimal(getattr(item, "cost_price", 0)) or Decimal("0.00")
-    markup = _to_decimal(getattr(item, "markup_percent", 0)) or Decimal("0.00")
-    item.sale_price_base = (
-        cost * (Decimal("1") + (markup / Decimal("100")))
-    ).quantize(Decimal("0.01"))
+    _recalculate_sale_price(item, preserve_highest=False)
 
     if hasattr(item, "updated_at"):
         setattr(item, "updated_at", datetime.utcnow())
@@ -491,7 +509,7 @@ def list_items(
             InventoryItem.quantity_in_stock <= InventoryItem.minimum_stock
         )
 
-    stmt = stmt.order_by(InventoryItem.part_name.asc())
+    stmt = stmt.order_by(InventoryItem.id.asc())
     return list(db.execute(stmt).scalars().all())
 
 

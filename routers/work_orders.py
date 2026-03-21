@@ -75,7 +75,7 @@ def _load_work_order(db: Session, work_order_id: int) -> WorkOrder:
 
             # ✅ carrito de piezas
             joinedload(WorkOrder.items).joinedload(WorkOrderItem.inventory_item),
-            joinedload(WorkOrder.labors),
+            joinedload(WorkOrder.labors).joinedload(WorkOrderLabor.mechanic),
         )
     )
     wo = db.execute(stmt).unique().scalars().first()
@@ -161,6 +161,25 @@ def _part_code_for_wo_item(it: Optional[WorkOrderItem]) -> str:
             return str(val)
     inv_id = getattr(it, "inventory_item_id", None)
     return f"#{inv_id}" if inv_id else "-"
+
+
+def _resolve_labor_mechanic(db: Session, mechanic_id: Optional[int], mechanic_name: Optional[str]):
+    """
+    Soporta dos modos:
+    - seleccionar user del sistema (mechanic_id)
+    - escribir nombre manual (mechanic_name)
+    Si mandan ambos, se guardan ambos. Si mandan id y no nombre, tomamos snapshot del user.
+    """
+    clean_name = (mechanic_name or "").strip() or None
+    if mechanic_id is None:
+        return None, clean_name
+
+    user = db.get(User, mechanic_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Mechanic user not found")
+
+    snapshot_name = clean_name or (user.full_name or user.username)
+    return mechanic_id, snapshot_name
 
 
 # -------------------------------
@@ -528,9 +547,13 @@ def add_work_order_labor(
     if not desc:
         raise HTTPException(status_code=422, detail="description is required")
 
+    mechanic_id, mechanic_name = _resolve_labor_mechanic(db, payload.mechanic_id, payload.mechanic_name)
+
     labor = WorkOrderLabor(
         work_order_id=wo.id,
         description=desc,
+        mechanic_id=mechanic_id,
+        mechanic_name=mechanic_name,
         hours=_q2(payload.hours),
         rate=_q2(payload.rate),
         line_total=_q2((payload.hours or Decimal("0")) * (payload.rate or Decimal("0"))),
@@ -561,6 +584,8 @@ def update_work_order_labor(
         if not desc:
             raise HTTPException(status_code=422, detail="description cannot be empty")
         labor.description = desc
+    if payload.mechanic_id is not None or payload.mechanic_name is not None:
+        labor.mechanic_id, labor.mechanic_name = _resolve_labor_mechanic(db, payload.mechanic_id, payload.mechanic_name)
     if payload.hours is not None:
         labor.hours = _q2(payload.hours)
     if payload.rate is not None:

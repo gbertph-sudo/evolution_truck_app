@@ -118,6 +118,7 @@
   <div class="wrap" style="max-width:100%; margin:0; padding:0;">
     <div class="wrap"><!-- Create -->
     <section class="card" style="margin-bottom:14px;">
+      <h2 id="formTitle" style="margin-top:0;">Create Company</h2>
       <div class="row">
         <div class="col">
           <label>Company name</label>
@@ -125,7 +126,10 @@
         </div>
         <div class="col" style="max-width:240px;">
           <label>&nbsp;</label>
-          <button id="btnCreate" type="button">Create</button>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button id="btnCreate" type="button">Create</button>
+            <button id="btnCancelEdit" class="ghost" type="button" style="display:none;">Cancel Edit</button>
+          </div>
         </div>
       </div>
       <div class="row" style="margin-top:10px;">
@@ -150,12 +154,17 @@
           <tr>
             <th style="width:80px;">ID</th>
             <th>Name</th>
+            <th style="width:220px;">Action</th>
           </tr>
         </thead>
         <tbody id="tbody">
-          <tr><td colspan="2" class="muted">Loading...</td></tr>
+          <tr><td colspan="3" class="muted">Loading...</td></tr>
         </tbody>
       </table>
+
+      <div class="muted" style="margin-top:10px;">
+        <span id="countPill">—</span>
+      </div>
     </section>
   </div>
 

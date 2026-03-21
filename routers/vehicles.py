@@ -7,11 +7,11 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select, or_
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import Vehicle, Customer, User
+from models import Customer, User, Vehicle
 from schemas import VehicleCreate, VehicleOut
 from security import require_roles
 
@@ -20,10 +20,6 @@ router = APIRouter(prefix="/vehicles", tags=["Vehicles"])
 VEHICLE_ROLES = ["SUPERADMIN", "ADMIN", "ACCOUNTANT", "VENDEDOR", "MECANICO"]
 VEHICLE_ADMIN_ROLES = ["SUPERADMIN", "ADMIN"]
 
-
-# ======================================================
-# HELPERS
-# ======================================================
 
 def _norm_str(v: Optional[str]) -> Optional[str]:
     if v is None:
@@ -48,17 +44,12 @@ def _vin_exists(db: Session, vin: str, exclude_vehicle_id: Optional[int] = None)
     return db.execute(stmt).scalar_one_or_none() is not None
 
 
-# ======================================================
-# CREATE
-# ======================================================
-
 @router.post("", response_model=VehicleOut, status_code=status.HTTP_201_CREATED)
 def create_vehicle(
     payload: VehicleCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*VEHICLE_ROLES)),
 ):
-    # ✅ Normalizar campos
     vin = _norm_vin(payload.vin)
     unit_number = _norm_str(payload.unit_number)
     make = _norm_str(payload.make)
@@ -66,17 +57,15 @@ def create_vehicle(
     year = payload.year
     customer_id = payload.customer_id
 
-    # ✅ Validar customer_id si viene
     if customer_id:
-        c = db.get(Customer, customer_id)
-        if not c:
+        customer = db.get(Customer, customer_id)
+        if not customer:
             raise HTTPException(status_code=422, detail="Invalid customer_id")
 
-    # ✅ VIN unique (si viene)
     if vin and _vin_exists(db, vin):
         raise HTTPException(status_code=409, detail="VIN already exists")
 
-    v = Vehicle(
+    vehicle = Vehicle(
         vin=vin,
         unit_number=unit_number,
         make=make,
@@ -85,15 +74,11 @@ def create_vehicle(
         customer_id=customer_id,
     )
 
-    db.add(v)
+    db.add(vehicle)
     db.commit()
-    db.refresh(v)
-    return v
+    db.refresh(vehicle)
+    return vehicle
 
-
-# ======================================================
-# LIST
-# ======================================================
 
 @router.get("", response_model=list[VehicleOut])
 def list_vehicles(
@@ -102,14 +87,13 @@ def list_vehicles(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*VEHICLE_ROLES)),
 ):
-    stmt = select(Vehicle).order_by(Vehicle.id.desc())
+    stmt = select(Vehicle).order_by(Vehicle.id.asc())
 
     if customer_id:
         stmt = stmt.where(Vehicle.customer_id == customer_id)
 
     if q:
         like = f"%{q.strip()}%"
-        # ✅ or_ para buscar por varios campos
         stmt = stmt.where(
             or_(
                 Vehicle.vin.ilike(like),
@@ -122,27 +106,17 @@ def list_vehicles(
     return list(db.execute(stmt).scalars().all())
 
 
-# ======================================================
-# GET ONE
-# ======================================================
-
 @router.get("/{vehicle_id}", response_model=VehicleOut)
 def get_vehicle(
     vehicle_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*VEHICLE_ROLES)),
 ):
-    v = db.get(Vehicle, vehicle_id)
-    if not v:
+    vehicle = db.get(Vehicle, vehicle_id)
+    if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
-    return v
+    return vehicle
 
-
-# ======================================================
-# UPDATE (PATCH)
-# Nota: aquí NO usamos VehicleCreate como "create real",
-# lo usamos como "payload flexible" pero controlamos campo por campo.
-# ======================================================
 
 @router.patch("/{vehicle_id}", response_model=VehicleOut)
 def update_vehicle(
@@ -151,52 +125,43 @@ def update_vehicle(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*VEHICLE_ROLES)),
 ):
-    v = db.get(Vehicle, vehicle_id)
-    if not v:
+    vehicle = db.get(Vehicle, vehicle_id)
+    if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
     data = payload.model_dump(exclude_unset=True)
 
-    # ✅ customer_id (validar si viene)
     if "customer_id" in data:
         cid = data.get("customer_id")
         if cid:
-            c = db.get(Customer, cid)
-            if not c:
+            customer = db.get(Customer, cid)
+            if not customer:
                 raise HTTPException(status_code=422, detail="Invalid customer_id")
-        v.customer_id = cid
+        vehicle.customer_id = cid
 
-    # ✅ VIN (normalizar + unique)
     if "vin" in data:
         vin = _norm_vin(data.get("vin"))
         if vin and _vin_exists(db, vin, exclude_vehicle_id=vehicle_id):
             raise HTTPException(status_code=409, detail="VIN already exists")
-        v.vin = vin
+        vehicle.vin = vin
 
     if "unit_number" in data:
-        v.unit_number = _norm_str(data.get("unit_number"))
-
+        vehicle.unit_number = _norm_str(data.get("unit_number"))
     if "make" in data:
-        v.make = _norm_str(data.get("make"))
-
+        vehicle.make = _norm_str(data.get("make"))
     if "model" in data:
-        v.model = _norm_str(data.get("model"))
-
+        vehicle.model = _norm_str(data.get("model"))
     if "year" in data:
-        v.year = data.get("year")
+        vehicle.year = data.get("year")
 
-    if hasattr(v, "updated_at"):
-        v.updated_at = datetime.utcnow()
+    if hasattr(vehicle, "updated_at"):
+        vehicle.updated_at = datetime.utcnow()
 
-    db.add(v)
+    db.add(vehicle)
     db.commit()
-    db.refresh(v)
-    return v
+    db.refresh(vehicle)
+    return vehicle
 
-
-# ======================================================
-# DELETE (ADMIN ONLY)
-# ======================================================
 
 @router.delete("/{vehicle_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_vehicle(
@@ -204,10 +169,10 @@ def delete_vehicle(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(*VEHICLE_ADMIN_ROLES)),
 ):
-    v = db.get(Vehicle, vehicle_id)
-    if not v:
+    vehicle = db.get(Vehicle, vehicle_id)
+    if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
-    db.delete(v)
+    db.delete(vehicle)
     db.commit()
     return

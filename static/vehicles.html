@@ -70,7 +70,7 @@
   <div class="wrap" style="max-width:100%; margin:0; padding:0;">
     <div class="wrap"><!-- CREATE -->
     <section class="card">
-      <h2 style="margin-top:0;">Create Vehicle</h2>
+      <h2 id="formTitle" style="margin-top:0;">Create Vehicle</h2>
 
       <div class="row">
         <div class="col">
@@ -109,7 +109,10 @@
 
       <div class="row actions">
         <div class="col" style="max-width:220px;">
-          <button id="btnCreate" type="button">Create</button>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button id="btnCreate" type="button">Create</button>
+            <button id="btnCancelEdit" class="ghost" type="button" style="display:none;">Cancel Edit</button>
+          </div>
         </div>
         <div class="col">
           <span id="msg" class="muted"></span>
@@ -138,10 +141,11 @@
             <th style="width:160px;">Make</th>
             <th style="width:160px;">Model</th>
             <th style="width:220px;">Customer</th>
+            <th style="width:220px;">Action</th>
           </tr>
         </thead>
         <tbody id="tbody">
-          <tr><td colspan="7" class="muted">Loading...</td></tr>
+          <tr><td colspan="8" class="muted">Loading...</td></tr>
         </tbody>
       </table>
 

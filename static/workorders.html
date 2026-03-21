@@ -559,12 +559,14 @@
             <h3>🛠️ Add Labor</h3>
             <div class="miniRow">
               <input id="laborDesc" placeholder="Labor description" style="min-width:320px;" />
+              <select id="laborMechanic" style="min-width:220px;"></select>
+              <input id="laborMechanicName" placeholder="Or type mechanic name" style="min-width:220px;" />
               <input id="laborHours" type="number" step="0.01" min="0" value="1" placeholder="Hours" />
               <input id="laborRate" type="number" step="0.01" min="0" value="0" placeholder="Rate" />
               <div class="spacer"></div>
               <button id="addLaborBtn">Add Labor</button>
             </div>
-            <div class="muted small" style="margin-top:8px;">On screen you edit Description, Hours and Rate. In print/PDF only Description and Amount will be shown.</div>
+            <div class="muted small" style="margin-top:8px;">You can assign each labor line to a system mechanic or type a custom mechanic name. In print/PDF only Description and Amount will be shown.</div>
           </div>
 
           <div class="miniCard" style="margin-top:14px;">
@@ -574,6 +576,7 @@
                 <thead>
                   <tr>
                     <th>Description</th>
+                    <th style="min-width:240px;">Mechanic</th>
                     <th class="rightNum" style="min-width:100px;">Hours</th>
                     <th class="rightNum" style="min-width:120px;">Rate</th>
                     <th class="rightNum" style="min-width:120px;">Total</th>
@@ -581,7 +584,7 @@
                   </tr>
                 </thead>
                 <tbody id="laborTbody">
-                  <tr><td colspan="5" class="muted">Open a work order.</td></tr>
+                  <tr><td colspan="6" class="muted">Open a work order.</td></tr>
                 </tbody>
               </table>
             </div>
